@@ -1,0 +1,12 @@
+[package]
+name = "dynify"
+version = "0.0.0"
+authors = ["Loi Chyan <loichyan@foxmail.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+rust-version = "1.80"
+
+repository = "https://github.com/loichyan/dynify"
+description = "Add dyn compatible variant to you async trait"
+keywords = ["async", "trait", "impl"]
+categories = ["asynchronous", "no-std", "rust-patterns"]

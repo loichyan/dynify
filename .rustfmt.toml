@@ -1,0 +1,9 @@
+edition = "2021"
+match_block_trailing_comma = true
+use_field_init_shorthand = true
+# Useful unstable options
+unstable_features = true
+group_imports = "StdExternalCrate"
+imports_granularity = "Module"
+format_code_in_doc_comments = true
+overflow_delimited_expr = true
