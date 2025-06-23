@@ -10,3 +10,10 @@ repository = "https://github.com/loichyan/dynify"
 description = "Add dyn compatible variant to you async trait"
 keywords = ["async", "trait", "impl"]
 categories = ["asynchronous", "no-std", "rust-patterns"]
+
+[features]
+default = ["alloc"]
+alloc = []
+
+[dev-dependencies]
+pollster = { version = "0.4.0", features = ["macro"] }
