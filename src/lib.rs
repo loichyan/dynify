@@ -10,6 +10,7 @@ extern crate alloc;
 mod constructor;
 mod container;
 mod function;
+mod receiver;
 
 pub use self::constructor::{Constructor, PinConstructor, Slot};
 #[cfg(feature = "alloc")]
@@ -19,9 +20,15 @@ pub use self::container::{Buffered, Container, PinContainer};
 /// NON-PUBLIC API
 #[doc(hidden)]
 pub mod r#priv {
-    pub use crate::constructor::{new_constructor, Receiver, ReceiverMut};
+    pub use crate::constructor::new_constructor;
     pub use crate::function::layout_of_return_type;
+    pub use crate::receiver::{
+        Receiver, ReceiverArc, ReceiverBox, ReceiverMut, ReceiverRc, ReceiverRef,
+    };
 }
+
+type VoidPtr = core::ptr::NonNull<Void>;
+enum Void {}
 
 // =========== Examples ===========
 #[cfg(test)]
@@ -67,9 +74,9 @@ pub async fn test_example() {
             unsafe {
                 new_constructor(
                     layout_of_return_type(&<Self as Async>::foo),
-                    (ReceiverMut::new(self), arg),
+                    (Receiver::seal(self), arg),
                     |slot, (this, arg)| {
-                        let out = <Self as Async>::foo(this.get(), arg);
+                        let out = <Self as Async>::foo(Receiver::unseal(this), arg);
                         let ptr = slot.write(out);
                         ptr as NonNull<dyn Future<Output = T::Item>>
                     },

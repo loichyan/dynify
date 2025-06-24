@@ -139,10 +139,7 @@ impl<Dyn: ?Sized, Args> From<Constructor<Dyn, Args>> for PinConstructor<Dyn, Arg
     }
 }
 
-type VoidPtr = NonNull<Void>;
-enum Void {}
-
-pub struct Slot(VoidPtr);
+pub struct Slot(crate::VoidPtr);
 impl Slot {
     pub unsafe fn new(ptr: NonNull<u8>) -> Self {
         Self(ptr.cast())
@@ -150,25 +147,5 @@ impl Slot {
     pub unsafe fn write<T>(self, val: T) -> NonNull<T> {
         self.0.cast().write(val);
         self.0.cast()
-    }
-}
-
-pub struct Receiver<'a>(VoidPtr, PhantomData<&'a Void>);
-impl<'a> Receiver<'a> {
-    pub fn new<T>(data: &'a T) -> Self {
-        Self(NonNull::from(data).cast(), PhantomData)
-    }
-    pub unsafe fn get<T>(self) -> &'a T {
-        self.0.cast().as_ref()
-    }
-}
-
-pub struct ReceiverMut<'a>(VoidPtr, PhantomData<&'a mut Void>);
-impl<'a> ReceiverMut<'a> {
-    pub fn new<T>(data: &'a mut T) -> Self {
-        Self(NonNull::from(data).cast(), PhantomData)
-    }
-    pub unsafe fn get<T>(self) -> &'a mut T {
-        self.0.cast().as_mut()
     }
 }
