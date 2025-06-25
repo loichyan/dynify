@@ -2,28 +2,28 @@ use crate::{Void, VoidPtr};
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-pub trait Receiver {
+pub unsafe trait Receiver {
     type Sealed;
     fn seal(self) -> Self::Sealed;
     unsafe fn unseal(sealed: Self::Sealed) -> Self;
 }
 
-pub struct ReceiverRef<'a>(VoidPtr, PhantomData<&'a Void>);
-impl<'a, T> Receiver for &'a T {
-    type Sealed = ReceiverRef<'a>;
+pub struct RefSelf<'a>(VoidPtr, PhantomData<&'a Void>);
+unsafe impl<'a, T> Receiver for &'a T {
+    type Sealed = RefSelf<'a>;
     fn seal(self) -> Self::Sealed {
-        ReceiverRef(NonNull::from(self).cast(), PhantomData)
+        RefSelf(NonNull::from(self).cast(), PhantomData)
     }
     unsafe fn unseal(sealed: Self::Sealed) -> Self {
         sealed.0.cast().as_ref()
     }
 }
 
-pub struct ReceiverMut<'a>(VoidPtr, PhantomData<&'a mut Void>);
-impl<'a, T> Receiver for &'a mut T {
-    type Sealed = ReceiverMut<'a>;
+pub struct RefMutSelf<'a>(VoidPtr, PhantomData<&'a mut Void>);
+unsafe impl<'a, T> Receiver for &'a mut T {
+    type Sealed = RefMutSelf<'a>;
     fn seal(self) -> Self::Sealed {
-        ReceiverMut(NonNull::from(self).cast(), PhantomData)
+        RefMutSelf(NonNull::from(self).cast(), PhantomData)
     }
     unsafe fn unseal(sealed: Self::Sealed) -> Self {
         sealed.0.cast().as_mut()
@@ -63,12 +63,12 @@ mod __alloc {
         }
     }
 
-    pub struct ReceiverBox(AllocReceiver);
-    impl<T> Receiver for Box<T> {
-        type Sealed = ReceiverBox;
+    pub struct BoxSelf(AllocReceiver);
+    unsafe impl<T> Receiver for Box<T> {
+        type Sealed = BoxSelf;
         fn seal(self) -> Self::Sealed {
             let data = unsafe { NonNull::new_unchecked(Box::into_raw(self)) };
-            ReceiverBox(AllocReceiver::new::<Self>(data.cast()))
+            BoxSelf(AllocReceiver::new::<Self>(data.cast()))
         }
         unsafe fn unseal(sealed: Self::Sealed) -> Self {
             let data = sealed.0.into_raw();
@@ -76,12 +76,12 @@ mod __alloc {
         }
     }
 
-    pub struct ReceiverRc(AllocReceiver);
-    impl<T> Receiver for Rc<T> {
-        type Sealed = ReceiverRc;
+    pub struct RcSelf(AllocReceiver);
+    unsafe impl<T> Receiver for Rc<T> {
+        type Sealed = RcSelf;
         fn seal(self) -> Self::Sealed {
             let data = unsafe { NonNull::new_unchecked(Rc::into_raw(self).cast_mut()) };
-            ReceiverRc(AllocReceiver::new::<Self>(data.cast()))
+            RcSelf(AllocReceiver::new::<Self>(data.cast()))
         }
         unsafe fn unseal(sealed: Self::Sealed) -> Self {
             let data = sealed.0.into_raw();
@@ -89,12 +89,12 @@ mod __alloc {
         }
     }
 
-    pub struct ReceiverArc(AllocReceiver);
-    impl<T> Receiver for Arc<T> {
-        type Sealed = ReceiverArc;
+    pub struct ArcSelf(AllocReceiver);
+    unsafe impl<T> Receiver for Arc<T> {
+        type Sealed = ArcSelf;
         fn seal(self) -> Self::Sealed {
             let data = unsafe { NonNull::new_unchecked(Arc::into_raw(self).cast_mut()) };
-            ReceiverArc(AllocReceiver::new::<Self>(data.cast()))
+            ArcSelf(AllocReceiver::new::<Self>(data.cast()))
         }
         unsafe fn unseal(sealed: Self::Sealed) -> Self {
             let data = sealed.0.into_raw();

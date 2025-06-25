@@ -1,5 +1,4 @@
 #![cfg_attr(not(test), no_std)]
-#![allow(async_fn_in_trait)]
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(clippy::missing_safety_doc)]
 #![deny(clippy::unsound_collection_transmute)]
@@ -12,7 +11,7 @@ mod container;
 mod function;
 mod receiver;
 
-pub use self::constructor::{Constructor, PinConstructor, Slot};
+pub use self::constructor::{Constructor, Dynify, PinDynify, Slot};
 #[cfg(feature = "alloc")]
 pub use self::container::Boxed;
 pub use self::container::{Buffered, Container, PinContainer};
@@ -20,11 +19,8 @@ pub use self::container::{Buffered, Container, PinContainer};
 /// NON-PUBLIC API
 #[doc(hidden)]
 pub mod r#priv {
-    pub use crate::constructor::new_constructor;
-    pub use crate::function::layout_of_return_type;
-    pub use crate::receiver::{
-        Receiver, ReceiverArc, ReceiverBox, ReceiverMut, ReceiverRc, ReceiverRef,
-    };
+    pub use crate::function::Fn;
+    pub use crate::receiver::{ArcSelf, BoxSelf, RcSelf, Receiver, RefMutSelf, RefSelf};
 }
 
 type VoidPtr = core::ptr::NonNull<Void>;
@@ -46,6 +42,7 @@ pub async fn test_example() {
         async fn foo(&mut self, arg: String) -> Self::Item;
     }
 
+    #[allow(clippy::type_complexity)]
     pub trait DynAsync {
         type Item;
 
@@ -54,7 +51,7 @@ pub async fn test_example() {
         fn foo<'a>(
             &'a mut self,
             arg: String,
-        ) -> PinConstructor<dyn 'a + Future<Output = Self::Item>, (ReceiverMut<'a>, String)>;
+        ) -> PinDynify<Fn<(RefMutSelf<'a>, String), dyn 'a + Future<Output = Self::Item>>>;
     }
 
     impl<T: Async + Sized> DynAsync for T {
@@ -67,21 +64,19 @@ pub async fn test_example() {
         fn foo<'a>(
             &'a mut self,
             arg: String,
-        ) -> PinConstructor<dyn 'a + Future<Output = Self::Item>, (ReceiverMut<'a>, String)>
-        where
-            Self: Sized,
-        {
+        ) -> PinDynify<Fn<(RefMutSelf<'a>, String), dyn 'a + Future<Output = Self::Item>>> {
             unsafe {
-                new_constructor(
-                    layout_of_return_type(&<Self as Async>::foo),
+                Fn::new_method(
+                    &<Self as Async>::foo,
                     (Receiver::seal(self), arg),
                     |slot, (this, arg)| {
-                        let out = <Self as Async>::foo(Receiver::unseal(this), arg);
+                        let this = Receiver::unseal(this);
+                        let out = <Self as Async>::foo(this, arg);
                         let ptr = slot.write(out);
                         ptr as NonNull<dyn Future<Output = T::Item>>
                     },
                 )
-                .pinned()
+                .pin_dynify()
             }
         }
     }
@@ -141,7 +136,7 @@ pub async fn test_example() {
             .try_init(stack.as_mut())
             .inspect(|_| println!(">>> stack allocated {name}"))
             .inspect_err(|_| println!(">>> heap allocated {name}"))
-            .unwrap_or_else(|c| c.init(&mut heap))
+            .unwrap_or_else(|(c, _)| c.init(&mut heap))
             .await;
         let b = imp.foo(arg.clone()).init2(stack.as_mut(), &mut heap).await;
         assert_eq!(a, b);
