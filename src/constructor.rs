@@ -3,14 +3,14 @@ use core::alloc::Layout;
 use core::pin::Pin;
 use core::ptr::NonNull;
 
-/// [`Dynify`] provides safe APIs to perform in-place object constructions.
+/// The main entrypoint used to perform in-place object constructions.
 pub struct Dynify<T>(Initializer<T>);
 impl<T> Dynify<T>
 where
     T: Constructor,
 {
     pub fn layout(&self) -> Layout {
-        self.0.layout()
+        self.0.as_ref().layout()
     }
 
     pub fn init<C>(self, container: C) -> C::Ptr
@@ -25,12 +25,14 @@ where
     where
         C: Container<T::Object>,
     {
-        match container.emplace(&mut self.0) {
-            Ok(p) => {
-                core::mem::forget(self);
-                Ok(p)
-            },
-            Err(e) => Err((self, e)),
+        unsafe {
+            match container.emplace(self.0.as_mut()) {
+                Ok(p) => {
+                    core::mem::forget(self);
+                    Ok(p)
+                },
+                Err(e) => Err((self, e)),
+            }
         }
     }
 
@@ -62,7 +64,7 @@ where
 pub struct PinDynify<T>(Initializer<T>);
 impl<T: Constructor> PinDynify<T> {
     pub fn layout(&self) -> Layout {
-        self.0.layout()
+        self.0.as_ref().layout()
     }
 
     pub fn init<C>(self, container: C) -> Pin<C::Ptr>
@@ -77,12 +79,14 @@ impl<T: Constructor> PinDynify<T> {
     where
         C: PinContainer<T::Object>,
     {
-        match container.pin_emplace(&mut self.0) {
-            Ok(p) => {
-                core::mem::forget(self);
-                Ok(p)
-            },
-            Err(e) => Err((self, e)),
+        unsafe {
+            match container.pin_emplace(self.0.as_mut()) {
+                Ok(p) => {
+                    core::mem::forget(self);
+                    Ok(p)
+                },
+                Err(e) => Err((self, e)),
+            }
         }
     }
 
@@ -114,17 +118,16 @@ impl<T: Constructor> PinDynify<T> {
     }
 }
 
-/// A [`Constructor`] packages necessary information to construct an object.
+/// The core type which packages necessary information to construct an object.
 ///
 /// # Safety
 ///
-/// If the object requires to be constructed in a pinned memory block, it must
-/// be ensured that the constructor cannot be used with a non-pinned container
-/// in safe Rust. Namely, it may only be used with [`PinContainer`].
-///
-/// [`layout`]: Self::layout
+/// The implementor must adhere to the documented contracts of each method.
 pub unsafe trait Constructor: Sized {
     type Object: ?Sized;
+
+    /// Returns the layout of the object to be constructed.
+    fn layout(&self) -> Layout;
 
     /// Constructs the object in the specified address.
     ///
@@ -145,66 +148,30 @@ pub unsafe trait Constructor: Sized {
     /// [`Object`]: Self::Object
     unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object>;
 
-    /// Returns the layout of the object to be constructed.
-    fn layout(&self) -> Layout;
-
-    /// Wraps the constructor in [`Dynify`] for further usage.
+    /// Wraps the constructor with [`Dynify`] for further usage.
     fn dynify(self) -> Dynify<Self> {
-        Dynify(unsafe { Initializer::new(self) })
+        Dynify(Initializer::new(self))
     }
 
-    /// Wraps the constructor in [`PinDynify`] to ensure it is constructed in
+    /// Wraps the constructor with [`PinDynify`] to ensure it is constructed in
     /// pinned containers.
     fn pin_dynify(self) -> PinDynify<Self> {
-        PinDynify(unsafe { Initializer::new(self) })
+        PinDynify(Initializer::new(self))
     }
 }
 
-pub struct Initializer<T>(Option<T>);
-impl<T> Initializer<T> {
-    pub unsafe fn new(constructor: T) -> Self {
-        Self(Some(constructor))
-    }
-
-    pub fn layout(&self) -> Layout
-    where
-        T: Constructor,
-    {
-        unsafe { Self::unwrap_unchecked(self.0.as_ref()).layout() }
-    }
-
-    pub unsafe fn init_unchecked(&mut self, slot: Slot) -> NonNull<T::Object>
-    where
-        T: Constructor,
-    {
-        Self::unwrap_unchecked(self.0.take()).construct(slot)
-    }
-
-    unsafe fn unwrap_unchecked<U>(opt: Option<U>) -> U {
-        match opt {
-            Some(t) => t,
-            None => {
-                #[cfg(debug_assertions)]
-                panic!("Initializer has been consumed");
-                #[cfg(not(debug_assertions))]
-                core::hint::unreachable_unchecked();
-            },
-        }
-    }
-}
-
-/// A slot used in [`Constructor::construct`] to store arbitrary objects.
+/// A memory block used in to store arbitrary objects.
 pub struct Slot(crate::VoidPtr);
 impl Slot {
     /// Creates a new slot from the supplied pointer.
     ///
     /// # Safety
     ///
-    /// The returned [`Slot`] may not be used outside of [`construct`].
-    /// [`Constructor`]s will write objects directly to the address of `ptr`,
-    /// hence `ptr` must meet all requirements of [`construct`].
+    /// - The returned [`Slot`] may not be used outside of [`construct`].
+    /// - [`Constructor`]s will write objects directly to the address of `ptr`,
+    ///   hence `ptr` must meet all safety requirements of [`construct`].
     ///
-    /// [`construct`]: Constructor::construct.
+    /// [`construct`]: Constructor::construct
     pub unsafe fn new(ptr: NonNull<u8>) -> Self {
         Self(ptr.cast())
     }
@@ -220,5 +187,103 @@ impl Slot {
         debug_assert!(ptr.is_aligned());
         ptr.write(object);
         ptr
+    }
+}
+
+/// A utility type that provides convenient methods for chained constructions.
+///
+/// # Example
+///
+/// ```rust
+/// # use dynify::{Initializer, Container};
+/// # use dynify::r#priv::I32Constructor;
+/// # use std::any::Any;
+/// let mut stack = [0u8; 32];
+/// let mut heap = vec![0u8; 0];
+/// let mut init = Initializer::new(I32Constructor);
+/// let any;
+/// // SAFETY: The constructor does not require pinned containers and will never
+/// // be consumed twice.
+/// if let Ok(p) = Container::emplace(&mut stack, unsafe { init.as_mut() }) {
+///     any = p;
+/// } else {
+///     any = Container::emplace(&mut heap, unsafe { init.as_mut() }).expect("unreachable!")
+/// };
+/// assert!(any.downcast_ref::<i32>().is_some());
+/// ```
+pub struct Initializer<T>(Option<T>);
+impl<T> Initializer<T> {
+    /// Wraps the supplied constructor and returns a new instance.
+    pub fn new(constructor: T) -> Self {
+        Self(Some(constructor))
+    }
+
+    /// Returns a mutable reference to this initializer.
+    ///
+    /// # Safety
+    ///
+    /// For the returned reference:
+    /// - It may not be used in non-pinned containers if the underlying
+    ///   constructor requires pinned memory blocks.
+    /// - After it is [`consume`]d, `self` must either be [`drop`]ed or be
+    ///   [`forget`]ed immediately. Future access will lead to *undefined
+    ///   behaviors*.
+    ///
+    /// [`consume`]: InitializerRefMut::consume
+    /// [`forget`]: core::mem::forget
+    pub unsafe fn as_mut(&mut self) -> InitializerRefMut<T> {
+        InitializerRefMut(&mut self.0)
+    }
+
+    /// Returns an immutable reference to this initializer.
+    pub fn as_ref(&self) -> InitializerRef<T> {
+        let inner = unsafe { unwrap_unchecked(self.0.as_ref()) };
+        InitializerRef(inner)
+    }
+}
+
+/// An immutable reference to [`Initializer`].
+pub struct InitializerRef<'a, T>(&'a T);
+impl<T> core::ops::Deref for InitializerRef<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+/// A mutable reference to [`Initializer`].
+pub struct InitializerRefMut<'a, T>(&'a mut Option<T>);
+impl<T> InitializerRefMut<'_, T> {
+    /// Consumes this initializer and returns the underlying constructor.
+    pub fn consume(mut self) -> T {
+        unsafe { self.consume_unchecked() }
+    }
+
+    /// Consumes this initializer without taking the ownship of `self`.
+    pub(crate) unsafe fn consume_unchecked(&mut self) -> T {
+        unsafe { unwrap_unchecked(self.0.take()) }
+    }
+}
+impl<T> core::ops::Deref for InitializerRefMut<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { unwrap_unchecked(self.0.as_ref()) }
+    }
+}
+impl<T> core::ops::DerefMut for InitializerRefMut<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { unwrap_unchecked(self.0.as_mut()) }
+    }
+}
+
+unsafe fn unwrap_unchecked<U>(opt: Option<U>) -> U {
+    match opt {
+        Some(t) => t,
+        None => {
+            #[cfg(debug_assertions)]
+            panic!("Initializer has been consumed");
+            #[cfg(not(debug_assertions))]
+            core::hint::unreachable_unchecked();
+        },
     }
 }

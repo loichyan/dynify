@@ -1,4 +1,4 @@
-use crate::constructor::{Constructor, Initializer, Slot};
+use crate::constructor::{Constructor, InitializerRefMut, Slot};
 use core::alloc::Layout;
 use core::fmt;
 use core::marker::PhantomData;
@@ -17,15 +17,14 @@ pub unsafe trait Container<T: ?Sized>: Sized {
     /// If `self` cannot fit the layout of the object to be constructed, it does
     /// nothing and returns an error. Otherwise, it returns a pointer to the
     /// constructed object.
-    fn emplace<C>(self, init: &mut Initializer<C>) -> Result<Self::Ptr, Self::Err>
+    fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>;
 }
 
-/// A pinned version of [`Container`] used for constructions that require pinned
-/// memory blocks.
+/// A variant of [`Container`] used for pinned constructions.
 pub unsafe trait PinContainer<T: ?Sized>: Container<T> {
-    fn pin_emplace<C>(self, init: &mut Initializer<C>) -> Result<Pin<Self::Ptr>, Self::Err>
+    fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
     where
         C: Constructor<Object = T>;
 }
@@ -66,7 +65,7 @@ unsafe impl<'a, T: ?Sized, const N: usize> Container<T> for &'a mut [u8; N] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
-    fn emplace<C>(self, init: &mut Initializer<C>) -> Result<Self::Ptr, Self::Err>
+    fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>,
     {
@@ -77,7 +76,7 @@ unsafe impl<'a, T: ?Sized, const N: usize> Container<T> for &'a mut [MaybeUninit
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
-    fn emplace<C>(self, init: &mut Initializer<C>) -> Result<Self::Ptr, Self::Err>
+    fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>,
     {
@@ -88,7 +87,7 @@ unsafe impl<'a, T: ?Sized> Container<T> for &'a mut [u8] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
-    fn emplace<C>(self, init: &mut Initializer<C>) -> Result<Self::Ptr, Self::Err>
+    fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>,
     {
@@ -100,11 +99,15 @@ unsafe impl<'a, T: ?Sized> Container<T> for &'a mut [MaybeUninit<u8>] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
-    fn emplace<C>(self, init: &mut Initializer<C>) -> Result<Self::Ptr, Self::Err>
+    fn emplace<C>(self, mut init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>,
     {
-        unsafe { buf_emplace(self, init.layout(), &mut |slot| init.init_unchecked(slot)) }
+        unsafe {
+            buf_emplace(self, init.layout(), &mut |slot| {
+                init.consume_unchecked().construct(slot)
+            })
+        }
     }
 }
 unsafe fn buf_emplace<'a, T: ?Sized>(
@@ -132,7 +135,7 @@ macro_rules! unsafe_impl_pin_buffered {
         unsafe impl<$lt, $T: ?Sized $(, const $N: usize)*> Container<$T> for Pin<$ty> {
             type Ptr = Buffered<$lt, $T>;
             type Err = OutOfCapacity;
-            fn emplace<C>(self, init: & mut Initializer<C>) -> Result<Self::Ptr, Self::Err>
+            fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
             where
                 C: Constructor<Object = $T>,
             {
@@ -140,7 +143,7 @@ macro_rules! unsafe_impl_pin_buffered {
             }
         }
         unsafe impl<$lt, $T: ?Sized $(, const $N: usize)*> PinContainer<$T> for Pin<$ty> {
-            fn pin_emplace<C>(self, init: & mut Initializer<C>) -> Result<Pin<Self::Ptr>, Self::Err>
+            fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
             where
                 C: Constructor<Object = $T>,
             {
@@ -169,11 +172,15 @@ mod __alloc {
         type Ptr = Box<T>;
         type Err = Infallible;
 
-        fn emplace<C>(self, init: &mut Initializer<C>) -> Result<Self::Ptr, Self::Err>
+        fn emplace<C>(self, mut init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
         where
             C: Constructor<Object = T>,
         {
-            Ok(unsafe { box_emlace(init.layout(), &mut |slot| init.init_unchecked(slot)) })
+            Ok(unsafe {
+                box_emlace(init.layout(), &mut |slot| {
+                    init.consume_unchecked().construct(slot)
+                })
+            })
         }
     }
     unsafe fn box_emlace<T: ?Sized>(
@@ -195,7 +202,7 @@ mod __alloc {
 
     // Pinned box
     unsafe impl<T: ?Sized> PinContainer<T> for Boxed {
-        fn pin_emplace<C>(self, init: &mut Initializer<C>) -> Result<Pin<Self::Ptr>, Self::Err>
+        fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
         where
             C: Constructor<Object = T>,
         {
@@ -208,7 +215,7 @@ mod __alloc {
         type Ptr = Buffered<'a, T>;
         type Err = Infallible;
 
-        fn emplace<C>(self, init: &mut Initializer<C>) -> Result<Self::Ptr, Self::Err>
+        fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
         where
             C: Constructor<Object = T>,
         {
@@ -220,11 +227,15 @@ mod __alloc {
         type Ptr = Buffered<'a, T>;
         type Err = Infallible;
 
-        fn emplace<C>(self, init: &mut Initializer<C>) -> Result<Self::Ptr, Self::Err>
+        fn emplace<C>(self, mut init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
         where
             C: Constructor<Object = T>,
         {
-            Ok(unsafe { vec_emplace(self, init.layout(), &mut |slot| init.init_unchecked(slot)) })
+            Ok(unsafe {
+                vec_emplace(self, init.layout(), &mut |slot| {
+                    init.consume_unchecked().construct(slot)
+                })
+            })
         }
     }
     unsafe fn vec_emplace<'a, T: ?Sized>(
@@ -251,7 +262,7 @@ mod __alloc {
 
     // Pinned vector
     unsafe impl<T: ?Sized> PinContainer<T> for &'_ mut Vec<u8> {
-        fn pin_emplace<C>(self, init: &mut Initializer<C>) -> Result<Pin<Self::Ptr>, Self::Err>
+        fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
         where
             C: Constructor<Object = T>,
         {
@@ -260,7 +271,7 @@ mod __alloc {
         }
     }
     unsafe impl<T: ?Sized> PinContainer<T> for &'_ mut Vec<MaybeUninit<u8>> {
-        fn pin_emplace<C>(self, init: &mut Initializer<C>) -> Result<Pin<Self::Ptr>, Self::Err>
+        fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
         where
             C: Constructor<Object = T>,
         {

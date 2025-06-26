@@ -10,7 +10,11 @@ pub struct Fn<Args, Ret: ?Sized> {
     args: Args,
 }
 impl<Args, Ret: ?Sized> Fn<Args, Ret> {
-    pub unsafe fn new<F>(_: &F, args: Args, init: unsafe fn(Slot, Args) -> NonNull<Ret>) -> Self
+    pub unsafe fn from_static<F>(
+        _: &F,
+        args: Args,
+        init: unsafe fn(Slot, Args) -> NonNull<Ret>,
+    ) -> Self
     where
         F: FunctionType<Args>,
     {
@@ -20,7 +24,7 @@ impl<Args, Ret: ?Sized> Fn<Args, Ret> {
             args,
         }
     }
-    pub unsafe fn new_method<A, F>(
+    pub unsafe fn from_method<A, F>(
         _: &F,
         args: Args,
         init: unsafe fn(Slot, Args) -> NonNull<Ret>,
@@ -29,7 +33,7 @@ impl<Args, Ret: ?Sized> Fn<Args, Ret> {
         F: FunctionType<A>,
         Method<A, F::Ret>: FunctionType<Args>,
     {
-        Self::new(&Method::<A, F::Ret>(PhantomData), args, init)
+        Self::from_static(&Method::<A, F::Ret>(PhantomData), args, init)
     }
 }
 unsafe impl<Args, Ret: ?Sized> Constructor for Fn<Args, Ret> {

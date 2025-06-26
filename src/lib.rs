@@ -11,7 +11,9 @@ mod container;
 mod function;
 mod receiver;
 
-pub use self::constructor::{Constructor, Dynify, PinDynify, Slot};
+pub use self::constructor::{
+    Constructor, Dynify, Initializer, InitializerRef, InitializerRefMut, PinDynify, Slot,
+};
 #[cfg(feature = "alloc")]
 pub use self::container::Boxed;
 pub use self::container::{Buffered, Container, PinContainer};
@@ -21,6 +23,17 @@ pub use self::container::{Buffered, Container, PinContainer};
 pub mod r#priv {
     pub use crate::function::Fn;
     pub use crate::receiver::{ArcSelf, BoxSelf, RcSelf, Receiver, RefMutSelf, RefSelf};
+
+    pub struct I32Constructor;
+    unsafe impl crate::Constructor for I32Constructor {
+        type Object = dyn core::any::Any;
+        fn layout(&self) -> core::alloc::Layout {
+            core::alloc::Layout::new::<i32>()
+        }
+        unsafe fn construct(self, slot: crate::Slot) -> core::ptr::NonNull<Self::Object> {
+            slot.write(123i32) as core::ptr::NonNull<dyn core::any::Any>
+        }
+    }
 }
 
 type VoidPtr = core::ptr::NonNull<Void>;
@@ -66,7 +79,7 @@ pub async fn test_example() {
             arg: String,
         ) -> PinDynify<Fn<(RefMutSelf<'a>, String), dyn 'a + Future<Output = Self::Item>>> {
             unsafe {
-                Fn::new_method(
+                Fn::from_method(
                     &<Self as Async>::foo,
                     (Receiver::seal(self), arg),
                     |slot, (this, arg)| {
