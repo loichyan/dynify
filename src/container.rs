@@ -1,4 +1,3 @@
-use crate::constructor::{Constructor, InitializerRefMut, Slot};
 use core::alloc::Layout;
 use core::fmt;
 use core::marker::PhantomData;
@@ -6,6 +5,8 @@ use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::NonNull;
+
+use crate::constructor::{Constructor, InitializerRefMut, Slot};
 
 /// A one-time container used for in-place constructions.
 pub unsafe trait Container<T: ?Sized>: Sized {
@@ -99,34 +100,27 @@ unsafe impl<'a, T: ?Sized> Container<T> for &'a mut [MaybeUninit<u8>] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
-    fn emplace<C>(self, mut init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
+    fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>,
     {
         unsafe {
-            buf_emplace(self, init.layout(), &mut |slot| {
-                init.consume_unchecked().construct(slot)
-            })
+            let slot = buf_emplace(self, init.layout())?;
+            let ptr = init.consume().construct(slot);
+            Ok(Buffered::from_raw(ptr))
         }
     }
 }
-unsafe fn buf_emplace<'a, T: ?Sized>(
-    buf: &'a mut [MaybeUninit<u8>],
-    layout: Layout,
-    init: &mut dyn FnMut(Slot) -> NonNull<T>,
-) -> Result<Buffered<'a, T>, OutOfCapacity> {
-    let start = buf.as_mut_ptr().cast::<u8>();
+unsafe fn buf_emplace(buf: &mut [MaybeUninit<u8>], layout: Layout) -> Result<Slot, OutOfCapacity> {
+    let start = buf.as_mut_ptr();
     let align_offset = start.align_offset(layout.align());
     let total_bytes = align_offset + layout.size();
 
     if total_bytes > buf.len() {
         return Err(OutOfCapacity);
     }
-    unsafe {
-        let slot = NonNull::new_unchecked(start.add(align_offset));
-        let ptr = init(Slot::new(slot));
-        Ok(Buffered::from_raw(ptr))
-    }
+    let slot = start.add(align_offset).cast::<u8>();
+    Ok(Slot::new(NonNull::new_unchecked(slot)))
 }
 
 // Pinned buffer
@@ -161,10 +155,11 @@ unsafe_impl_pin_buffered!(<'a, T> for &'a mut [MaybeUninit<u8>]);
 
 #[cfg(feature = "alloc")]
 mod __alloc {
-    use super::*;
     use alloc::boxed::Box;
     use alloc::vec::Vec;
     use core::convert::Infallible;
+
+    use super::*;
 
     // Normal box
     pub struct Boxed;
@@ -172,21 +167,18 @@ mod __alloc {
         type Ptr = Box<T>;
         type Err = Infallible;
 
-        fn emplace<C>(self, mut init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
+        fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
         where
             C: Constructor<Object = T>,
         {
-            Ok(unsafe {
-                box_emlace(init.layout(), &mut |slot| {
-                    init.consume_unchecked().construct(slot)
-                })
-            })
+            unsafe {
+                let slot = box_emlace(init.layout());
+                let ptr = init.consume().construct(slot);
+                Ok(Box::from_raw(ptr.as_ptr()))
+            }
         }
     }
-    unsafe fn box_emlace<T: ?Sized>(
-        layout: Layout,
-        init: &mut dyn FnMut(Slot) -> NonNull<T>,
-    ) -> Box<T> {
+    unsafe fn box_emlace(layout: Layout) -> Slot {
         let slot = match layout.size() {
             // TODO: support ZST
             0 => panic!("zero sized type is not supported"),
@@ -194,10 +186,7 @@ mod __alloc {
             _ => unsafe { NonNull::new(alloc::alloc::alloc(layout)) }
                 .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout)),
         };
-        unsafe {
-            let ptr = init(Slot::new(slot));
-            Box::from_raw(ptr.as_ptr())
-        }
+        Slot::new(slot)
     }
 
     // Pinned box
@@ -227,37 +216,29 @@ mod __alloc {
         type Ptr = Buffered<'a, T>;
         type Err = Infallible;
 
-        fn emplace<C>(self, mut init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
+        fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
         where
             C: Constructor<Object = T>,
         {
-            Ok(unsafe {
-                vec_emplace(self, init.layout(), &mut |slot| {
-                    init.consume_unchecked().construct(slot)
-                })
-            })
+            unsafe {
+                let slot = vec_emplace(self, init.layout());
+                let ptr = init.consume().construct(slot);
+                Ok(Buffered::from_raw(ptr))
+            }
         }
     }
-    unsafe fn vec_emplace<'a, T: ?Sized>(
-        vec: &'a mut Vec<MaybeUninit<u8>>,
-        layout: Layout,
-        init: &mut dyn FnMut(Slot) -> NonNull<T>,
-    ) -> Buffered<'a, T> {
-        loop {
-            let buf = vec.as_mut_ptr().cast::<u8>();
-            let align_offset = buf.align_offset(layout.align());
-            let total_bytes = align_offset + layout.size();
+    unsafe fn vec_emplace(vec: &mut Vec<MaybeUninit<u8>>, layout: Layout) -> Slot {
+        let mut buf = vec.as_mut_ptr();
+        let mut align_offset = buf.align_offset(layout.align());
+        let total_bytes = align_offset + layout.size();
 
-            if total_bytes > vec.capacity() {
-                vec.reserve(layout.size() + layout.align() - vec.len());
-                continue;
-            }
-            unsafe {
-                let slot = NonNull::new_unchecked(buf.add(align_offset));
-                let ptr = init(Slot::new(slot));
-                return Buffered::from_raw(ptr);
-            }
+        if total_bytes > vec.capacity() {
+            vec.reserve(layout.size() + layout.align() - vec.len());
+            buf = vec.as_mut_ptr();
+            align_offset = buf.align_offset(layout.align());
         }
+        let slot = buf.add(align_offset).cast::<u8>();
+        Slot::new(NonNull::new_unchecked(slot))
     }
 
     // Pinned vector
