@@ -1,22 +1,34 @@
-[package]
-name = "dynify"
-version = "0.1.0"
+[workspace]
+members = ["macros"]
+
+[workspace.package]
 authors = ["Loi Chyan <loichyan@foxmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 rust-version = "1.80"
-
 repository = "https://github.com/loichyan/dynify"
-description = "Add dyn compatible variant to you async trait"
+
+[package]
+name = "dynify"
+version = "0.1.0"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+repository.workspace = true
+description = "Add dyn compatible variant to your async trait"
 keywords = ["async", "trait", "impl"]
 categories = ["asynchronous", "no-std", "rust-patterns"]
 
 [features]
 default = ["alloc"]
 alloc = []
+macros = ["dep:dynify-macros"]
 smallvec = ["dep:smallvec"]
 
 [dependencies]
+dynify-macros = { path = "./macros", optional = true }
 smallvec = { version = "1", optional = true }
 
 [dev-dependencies]

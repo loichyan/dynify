@@ -21,11 +21,21 @@ checksum = "9555578bc9e57714c812a1f84e4fc5b4d21fcb063490c624de019f7464c91268"
 name = "dynify"
 version = "0.1.0"
 dependencies = [
+ "dynify-macros",
  "fastrand",
  "pollster",
  "rstest",
  "smallvec",
  "trybuild",
+]
+
+[[package]]
+name = "dynify-macros"
+version = "0.0.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
