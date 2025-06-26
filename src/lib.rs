@@ -1,6 +1,5 @@
 #![cfg_attr(not(test), no_std)]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(clippy::missing_safety_doc)]
 #![deny(clippy::unsound_collection_transmute)]
 
 #[cfg(feature = "alloc")]
@@ -24,6 +23,7 @@ pub mod r#priv {
     pub use crate::function::Fn;
     pub use crate::receiver::{ArcSelf, BoxSelf, RcSelf, Receiver, RefMutSelf, RefSelf};
 
+    // ========== Items for doctest ==========
     pub struct I32Constructor;
     unsafe impl crate::Constructor for I32Constructor {
         type Object = dyn core::any::Any;
@@ -43,10 +43,11 @@ enum Void {}
 #[cfg(test)]
 #[pollster::test]
 pub async fn test_example() {
-    use crate::r#priv::*;
     use std::future::Future;
     use std::mem::MaybeUninit;
     use std::ptr::NonNull;
+
+    use crate::r#priv::*;
 
     pub trait Async {
         type Item;

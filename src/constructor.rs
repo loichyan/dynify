@@ -1,7 +1,8 @@
-use crate::container::{Container, PinContainer};
 use core::alloc::Layout;
 use core::pin::Pin;
 use core::ptr::NonNull;
+
+use crate::container::{Container, PinContainer};
 
 /// The main entrypoint used to perform in-place object constructions.
 pub struct Dynify<T>(Initializer<T>);
@@ -9,10 +10,18 @@ impl<T> Dynify<T>
 where
     T: Constructor,
 {
+    /// Returns the layout of the object to be constructed.
     pub fn layout(&self) -> Layout {
         self.0.as_ref().layout()
     }
 
+    /// Constructs the object in the supplied container.
+    ///
+    /// For non-panicking variant, use [`try_init`](Self::try_init).
+    ///
+    /// # Panic
+    ///
+    /// It panics if `container` fails to construct the object.
     pub fn init<C>(self, container: C) -> C::Ptr
     where
         C: Container<T::Object>,
@@ -21,6 +30,10 @@ where
             .unwrap_or_else(|_| panic!("failed to initialize"))
     }
 
+    /// Constructs the object in the supplied container.
+    ///
+    /// If the construction succeeds, it returns the pointer to the constructed
+    /// object. Otherwise, the encountered error along with `self` is returned.
     pub fn try_init<C>(mut self, container: C) -> Result<C::Ptr, (Self, C::Err)>
     where
         C: Container<T::Object>,
@@ -36,6 +49,13 @@ where
         }
     }
 
+    /// Constructs the object in two containers in turn.
+    ///
+    /// For non-panicking variant, use [`try_init2`](Self::try_init2).
+    ///
+    /// # Panic
+    ///
+    /// It panics if both containers fail to construct the object.
     pub fn init2<P, C1, C2>(self, container1: C1, container2: C2) -> P
     where
         C1: Container<T::Object, Ptr = P>,
@@ -45,6 +65,10 @@ where
             .unwrap_or_else(|_| panic!("failed to initialize"))
     }
 
+    /// Constructs the object in two containers in turn.
+    ///
+    /// It returns the object pointer if either container succeeds. Otherwise,
+    /// it forwards the error returned from `container2`.
     pub fn try_init2<P, C1, C2>(self, container1: C1, container2: C2) -> Result<P, (Self, C2::Err)>
     where
         C1: Container<T::Object, Ptr = P>,
@@ -54,6 +78,9 @@ where
             .or_else(|(this, _)| this.try_init(container2))
     }
 
+    /// Constructs the object in [`Box`](alloc::boxed::Box).
+    ///
+    /// This function never fails as long as there is enough free memory.
     #[cfg(feature = "alloc")]
     pub fn boxed(self) -> alloc::boxed::Box<T::Object> {
         self.init(crate::container::Boxed)
@@ -118,7 +145,7 @@ impl<T: Constructor> PinDynify<T> {
     }
 }
 
-/// The core type which packages necessary information to construct an object.
+/// The core trait to package necessary information for object constructions.
 ///
 /// # Safety
 ///

@@ -9,6 +9,10 @@ use core::ptr::NonNull;
 use crate::constructor::{Constructor, InitializerRefMut, Slot};
 
 /// A one-time container used for in-place constructions.
+///
+/// # Safety
+///
+/// The implementor must adhere the documented contracts of each method.
 pub unsafe trait Container<T: ?Sized>: Sized {
     type Ptr: Deref;
     type Err;
@@ -16,15 +20,25 @@ pub unsafe trait Container<T: ?Sized>: Sized {
     /// Consumes this container and initializes the supplied constructor in it.
     ///
     /// If `self` cannot fit the layout of the object to be constructed, it does
-    /// nothing and returns an error. Otherwise, it returns a pointer to the
-    /// constructed object.
+    /// nothing and returns an error. Otherwise, it consumes `init` and returns
+    /// the pointer to the constructed object.
     fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>;
 }
 
 /// A variant of [`Container`] used for pinned constructions.
+///
+/// # Safety
+///
+/// The implementor must adhere the documented contracts of each method.
 pub unsafe trait PinContainer<T: ?Sized>: Container<T> {
+    /// Initializes the supplied constructor in a pinned memory block.
+    ///
+    /// It returns a pinned pointer to the constructed object if successful. For
+    /// more information, see [`emplace`].
+    ///
+    /// [`emplace`]: Container::emplace
     fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
     where
         C: Constructor<Object = T>;
@@ -32,13 +46,21 @@ pub unsafe trait PinContainer<T: ?Sized>: Container<T> {
 
 pub struct Buffered<'a, T: ?Sized>(NonNull<T>, PhantomData<&'a mut [u8]>);
 impl<'a, T: ?Sized> Buffered<'a, T> {
+    /// Constructs a new instance with the provided pointer.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be a valid and properly initialized pointer, and be exclusive
+    /// for this construction.
     pub unsafe fn from_raw(ptr: NonNull<T>) -> Self {
         Self(ptr, PhantomData)
     }
 }
 impl<T: ?Sized> Drop for Buffered<'_, T> {
     fn drop(&mut self) {
-        unsafe { self.0.drop_in_place() }
+        if core::mem::needs_drop::<T>() {
+            unsafe { self.0.drop_in_place() }
+        }
     }
 }
 impl<T: ?Sized> Deref for Buffered<'_, T> {

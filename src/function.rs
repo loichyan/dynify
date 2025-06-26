@@ -1,15 +1,27 @@
-use crate::constructor::{Constructor, Slot};
-use crate::receiver::Receiver;
 use core::alloc::Layout;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
+use crate::constructor::{Constructor, Slot};
+use crate::receiver::Receiver;
+
+/// A constructor for the return type of functions.
 pub struct Fn<Args, Ret: ?Sized> {
     layout: Layout,
     init: unsafe fn(Slot, Args) -> NonNull<Ret>,
     args: Args,
 }
 impl<Args, Ret: ?Sized> Fn<Args, Ret> {
+    /// Creates a constructor for the return type of the specified function.
+    ///
+    /// All arguments required for `F` should be packed into `args` as a tuple.
+    /// `args` is passed to `init` along with a slot to store the returned value
+    /// when the returned instance is ready to be constructed.
+    ///
+    /// # Safety
+    ///
+    /// `init` may not write data to the supplied slot of different layouts than
+    /// the return type of `F`.
     pub unsafe fn from_static<F>(
         _: &F,
         args: Args,
@@ -24,6 +36,15 @@ impl<Args, Ret: ?Sized> Fn<Args, Ret> {
             args,
         }
     }
+    /// Creates a constructor for the return type of the specified method.
+    ///
+    /// A method is a function of which receiver type (namely, the first
+    /// argument of types such as `&Self`, `&mut Self` and `Box<Self>`) is
+    /// sealed with [`Receiver::seal`].
+    ///
+    /// # Safety
+    ///
+    /// See [`from_static`](Self::from_static).
     pub unsafe fn from_method<A, F>(
         _: &F,
         args: Args,
@@ -46,6 +67,7 @@ unsafe impl<Args, Ret: ?Sized> Constructor for Fn<Args, Ret> {
     }
 }
 
+/// A blanked trait implemented for arbitrary functions.
 pub trait FunctionType<Args> {
     type Ret;
 }
