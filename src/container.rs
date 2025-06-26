@@ -180,8 +180,7 @@ mod __alloc {
     }
     unsafe fn box_emlace(layout: Layout) -> Slot {
         let slot = match layout.size() {
-            // TODO: support ZST
-            0 => panic!("zero sized type is not supported"),
+            0 => NonNull::new_unchecked(layout.align() as *mut u8),
             // SAFETY: `layout` is non-zero in size,
             _ => unsafe { NonNull::new(alloc::alloc::alloc(layout)) }
                 .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout)),
