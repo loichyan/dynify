@@ -69,7 +69,7 @@ pub async fn test_example() {
         fn foo<'a>(
             &'a mut self,
             arg: String,
-        ) -> PinDynify<Fn!(&'a mut Self, String => dyn 'a + Future<Output = Self::Item>)>;
+        ) -> Dynify<Fn!(&'a mut Self, String => dyn 'a + Future<Output = Self::Item>)>;
     }
 
     impl<T: Async + Sized> DynAsync for T {
@@ -82,7 +82,7 @@ pub async fn test_example() {
         fn foo<'a>(
             &'a mut self,
             arg: String,
-        ) -> PinDynify<Fn!(&'a mut Self, String => dyn 'a + Future<Output = Self::Item>)> {
+        ) -> Dynify<Fn!(&'a mut Self, String => dyn 'a + Future<Output = Self::Item>)> {
             crate::from_fn!(<Self as Async>::foo, self, arg)
         }
     }
@@ -120,7 +120,7 @@ pub async fn test_example() {
         imp: &mut dyn DynAsync<Item = Item>,
         arg: String,
     ) -> Item {
-        let mut stack = std::pin::pin!([MaybeUninit::<u8>::uninit(); 64]);
+        let mut stack = [MaybeUninit::<u8>::uninit(); 64];
         let mut heap = Vec::<MaybeUninit<u8>>::new();
 
         // compile fail:
@@ -139,12 +139,12 @@ pub async fn test_example() {
         println!(">>> {name}, layout={:?}", imp.foo(arg.clone()).layout());
         let a = imp
             .foo(arg.clone())
-            .try_init(stack.as_mut())
+            .try_init(&mut stack)
             .inspect(|_| println!(">>> stack allocated {name}"))
             .inspect_err(|_| println!(">>> heap allocated {name}"))
             .unwrap_or_else(|(c, _)| c.init(&mut heap))
             .await;
-        let b = imp.foo(arg.clone()).init2(stack.as_mut(), &mut heap).await;
+        let b = imp.foo(arg.clone()).init2(&mut stack, &mut heap).await;
         assert_eq!(a, b);
         a
     }

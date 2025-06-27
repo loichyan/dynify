@@ -14,7 +14,7 @@ use crate::constructor::{Constructor, InitializerRefMut, Slot};
 ///
 /// The implementor must adhere the documented contracts of each method.
 pub unsafe trait Container<T: ?Sized>: Sized {
-    type Ptr: Deref;
+    type Ptr: core::ops::Deref<Target = T>;
     type Err;
 
     /// Consumes this container and initializes the supplied constructor in it.
@@ -52,10 +52,25 @@ impl<'a, T: ?Sized> Buffered<'a, T> {
     ///
     /// `ptr` must be a valid and properly initialized pointer, and be exclusive
     /// for this construction.
-    pub unsafe fn from_raw(ptr: NonNull<T>) -> Self {
+    unsafe fn from_raw(ptr: NonNull<T>) -> Self {
         Self(ptr, PhantomData)
     }
+
+    pub fn project(self: Pin<&mut Self>) -> Pin<&mut T> {
+        unsafe {
+            let this = Pin::into_inner_unchecked(self);
+            Pin::new_unchecked(this)
+        }
+    }
+    pub fn project_ref(self: Pin<&Self>) -> Pin<&T> {
+        unsafe {
+            let this = Pin::into_inner_unchecked(self);
+            Pin::new_unchecked(this)
+        }
+    }
 }
+
+impl<T: ?Sized + Unpin> Unpin for Buffered<'_, T> {}
 impl<T: ?Sized> Drop for Buffered<'_, T> {
     fn drop(&mut self) {
         if core::mem::needs_drop::<T>() {
@@ -63,6 +78,7 @@ impl<T: ?Sized> Drop for Buffered<'_, T> {
         }
     }
 }
+
 impl<T: ?Sized> Deref for Buffered<'_, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
@@ -72,6 +88,19 @@ impl<T: ?Sized> Deref for Buffered<'_, T> {
 impl<T: ?Sized> DerefMut for Buffered<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { self.0.as_mut() }
+    }
+}
+
+impl<T> core::future::Future for Buffered<'_, T>
+where
+    T: ?Sized + core::future::Future,
+{
+    type Output = T::Output;
+    fn poll(
+        self: Pin<&mut Self>,
+        cx: &mut core::task::Context<'_>,
+    ) -> core::task::Poll<Self::Output> {
+        self.project().poll(cx)
     }
 }
 
@@ -145,36 +174,6 @@ unsafe fn buf_emplace(buf: &mut [MaybeUninit<u8>], layout: Layout) -> Result<Slo
     Ok(Slot::new(NonNull::new_unchecked(slot)))
 }
 
-// Pinned buffer
-macro_rules! unsafe_impl_pin_buffered {
-    (<$lt:lifetime, $T:ident $(,const $N:ident: usize)?> for $ty:ty) => {
-        unsafe impl<$lt, $T: ?Sized $(, const $N: usize)*> Container<$T> for Pin<$ty> {
-            type Ptr = Buffered<$lt, $T>;
-            type Err = OutOfCapacity;
-            fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
-            where
-                C: Constructor<Object = $T>,
-            {
-                Pin::into_inner(self).emplace(init)
-            }
-        }
-        unsafe impl<$lt, $T: ?Sized $(, const $N: usize)*> PinContainer<$T> for Pin<$ty> {
-            fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
-            where
-                C: Constructor<Object = $T>,
-            {
-                Pin::into_inner(self)
-                    .emplace(init)
-                    .map(|ptr| unsafe { Pin::new_unchecked(ptr) })
-            }
-        }
-    };
-}
-unsafe_impl_pin_buffered!(<'a, T, const N: usize> for &'a mut [u8; N]);
-unsafe_impl_pin_buffered!(<'a, T, const N: usize> for &'a mut [MaybeUninit<u8>; N]);
-unsafe_impl_pin_buffered!(<'a, T> for &'a mut [u8]);
-unsafe_impl_pin_buffered!(<'a, T> for &'a mut [MaybeUninit<u8>]);
-
 #[cfg(feature = "alloc")]
 mod __alloc {
     use alloc::boxed::Box;
@@ -200,16 +199,6 @@ mod __alloc {
             }
         }
     }
-    unsafe fn box_emlace(layout: Layout) -> Slot {
-        let slot = match layout.size() {
-            0 => NonNull::new_unchecked(layout.align() as *mut u8),
-            // SAFETY: `layout` is non-zero in size,
-            _ => unsafe { NonNull::new(alloc::alloc::alloc(layout)) }
-                .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout)),
-        };
-        Slot::new(slot)
-    }
-
     // Pinned box
     unsafe impl<T: ?Sized> PinContainer<T> for Boxed {
         fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
@@ -218,6 +207,15 @@ mod __alloc {
         {
             self.emplace(init).map(Box::into_pin)
         }
+    }
+    unsafe fn box_emlace(layout: Layout) -> Slot {
+        let slot = match layout.size() {
+            0 => NonNull::new_unchecked(layout.align() as *mut u8),
+            // SAFETY: `layout` is non-zero in size,
+            _ => unsafe { NonNull::new(alloc::alloc::alloc(layout)) }
+                .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout)),
+        };
+        Slot::new(slot)
     }
 
     // Normal vector
@@ -260,26 +258,6 @@ mod __alloc {
         }
         let slot = buf.add(align_offset).cast::<u8>();
         Slot::new(NonNull::new_unchecked(slot))
-    }
-
-    // Pinned vector
-    unsafe impl<T: ?Sized> PinContainer<T> for &'_ mut Vec<u8> {
-        fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
-        where
-            C: Constructor<Object = T>,
-        {
-            self.emplace(init)
-                .map(|ptr| unsafe { Pin::new_unchecked(ptr) })
-        }
-    }
-    unsafe impl<T: ?Sized> PinContainer<T> for &'_ mut Vec<MaybeUninit<u8>> {
-        fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
-        where
-            C: Constructor<Object = T>,
-        {
-            self.emplace(init)
-                .map(|ptr| unsafe { Pin::new_unchecked(ptr) })
-        }
     }
 }
 #[cfg(feature = "alloc")]
