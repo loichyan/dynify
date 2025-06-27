@@ -13,7 +13,7 @@ use crate::{Void, VoidPtr};
 /// The implementor must adhere the documented contracts of each method.
 ///
 /// [`Fn`]: crate::function::Fn
-pub unsafe trait Receiver {
+pub unsafe trait Receiver: core::ops::Deref {
     /// The sealed type of this receiver.
     type Sealed;
 
@@ -30,6 +30,21 @@ pub unsafe trait Receiver {
     /// `sealed` must be created from the original receiver of the method to
     /// which it is passed.
     unsafe fn unseal(sealed: Self::Sealed) -> Self;
+}
+
+/// The sealed type of `Pin<T>`.
+pub struct Pin<T>(T);
+unsafe impl<T: Receiver> Receiver for core::pin::Pin<T> {
+    type Sealed = Pin<T::Sealed>;
+    fn seal(self) -> Self::Sealed {
+        unsafe {
+            let this = core::pin::Pin::into_inner_unchecked(self);
+            Pin(T::seal(this))
+        }
+    }
+    unsafe fn unseal(sealed: Self::Sealed) -> Self {
+        core::pin::Pin::new_unchecked(T::unseal(sealed.0))
+    }
 }
 
 /// The sealed type of `&Self`.
