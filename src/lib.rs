@@ -28,19 +28,6 @@ pub mod r#priv {
     pub type PinBoxSelf = crate::receiver::Pin<BoxSelf>;
     pub type PinRcSelf = crate::receiver::Pin<RcSelf>;
     pub type PinArcSelf = crate::receiver::Pin<ArcSelf>;
-
-    // ========== Items for doctest ==========
-
-    pub struct I32Constructor;
-    unsafe impl crate::Constructor for I32Constructor {
-        type Object = dyn core::any::Any;
-        fn layout(&self) -> core::alloc::Layout {
-            core::alloc::Layout::new::<i32>()
-        }
-        unsafe fn construct(self, slot: crate::Slot) -> core::ptr::NonNull<Self::Object> {
-            slot.write(123i32) as core::ptr::NonNull<dyn core::any::Any>
-        }
-    }
 }
 
 type VoidPtr = core::ptr::NonNull<Void>;

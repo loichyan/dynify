@@ -32,12 +32,13 @@ where
 
     /// Constructs the object in the supplied container.
     ///
-    /// If the construction succeeds, it returns the pointer to the constructed
-    /// object. Otherwise, the encountered error along with `self` is returned.
+    /// If the construction succeeds, it returns the pointer to the object.
+    /// Otherwise, `self` is returned along with the encountered error.
     pub fn try_init<C>(mut self, container: C) -> Result<C::Ptr, (Self, C::Err)>
     where
         C: Container<T::Object>,
     {
+        // SAFETY: `self` will never be accessed once the construction succeeds.
         unsafe {
             match container.emplace(self.0.as_mut()) {
                 Ok(p) => {
@@ -52,6 +53,21 @@ where
     /// Constructs the object in two containers in turn.
     ///
     /// For non-panicking variant, use [`try_init2`](Self::try_init2).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use dynify::{Dynify, Fn, from_fn};
+    /// # use std::future::Future;
+    /// # pollster::block_on(async {
+    /// let mut stack = [0u8; 32];
+    /// let mut heap = vec![0u8; 0];
+    ///
+    /// let constructor: Dynify<Fn!(=> dyn Future<Output = i32>)> = from_fn!(|| async { 777 });
+    /// let ret = constructor.init2(&mut stack, &mut heap).await;
+    /// assert_eq!(ret, 777);
+    /// # });
+    /// ```
     ///
     /// # Panic
     ///
@@ -90,10 +106,18 @@ where
 /// A variant of [`Dynify`] that requires pinned containers.
 pub struct PinDynify<T>(Initializer<T>);
 impl<T: Constructor> PinDynify<T> {
+    /// Returns the layout of the object to be constructed.
     pub fn layout(&self) -> Layout {
         self.0.as_ref().layout()
     }
 
+    /// Constructs the object in the supplied container.
+    ///
+    /// For non-panicking variant, use [`try_init`](Self::try_init).
+    ///
+    /// # Panic
+    ///
+    /// It panics if `container` fails to construct the object.
     pub fn init<C>(self, container: C) -> Pin<C::Ptr>
     where
         C: PinContainer<T::Object>,
@@ -102,10 +126,15 @@ impl<T: Constructor> PinDynify<T> {
             .unwrap_or_else(|_| panic!("failed to initialize"))
     }
 
+    /// Constructs the object in the supplied container.
+    ///
+    /// If the construction succeeds, it returns the pointer to the object.
+    /// Otherwise, `self` is returned along with the encountered error.
     pub fn try_init<C>(mut self, container: C) -> Result<Pin<C::Ptr>, (Self, C::Err)>
     where
         C: PinContainer<T::Object>,
     {
+        // SAFETY: `self` will never be accessed once the construction succeeds.
         unsafe {
             match container.pin_emplace(self.0.as_mut()) {
                 Ok(p) => {
@@ -117,6 +146,13 @@ impl<T: Constructor> PinDynify<T> {
         }
     }
 
+    /// Constructs the object in two containers in turn.
+    ///
+    /// For non-panicking variant, use [`try_init2`](Self::try_init2).
+    ///
+    /// # Panic
+    ///
+    /// It panics if both containers fail to construct the object.
     pub fn init2<P, C1, C2>(self, container1: C1, container2: C2) -> Pin<P>
     where
         C1: PinContainer<T::Object, Ptr = P>,
@@ -126,6 +162,10 @@ impl<T: Constructor> PinDynify<T> {
             .unwrap_or_else(|_| panic!("failed to initialize"))
     }
 
+    /// Constructs the object in two containers in turn.
+    ///
+    /// It returns the object pointer if either container succeeds. Otherwise,
+    /// it forwards the error returned from `container2`.
     pub fn try_init2<P, C1, C2>(
         self,
         container1: C1,
@@ -139,6 +179,19 @@ impl<T: Constructor> PinDynify<T> {
             .or_else(|(this, _)| this.try_init(container2))
     }
 
+    /// Constructs the object in [`Box`](alloc::boxed::Box).
+    ///
+    /// This function never fails as long as there is enough free memory.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use dynify::{Fn, PinDynify, from_fn};
+    /// # use std::any::Any;
+    /// # use std::pin::Pin;
+    /// let constructor: PinDynify<Fn!(=> dyn Any)> = from_fn!(|| 123);
+    /// let _: Pin<Box<dyn Any>> = constructor.boxed();
+    /// ```
     #[cfg(feature = "alloc")]
     pub fn boxed(self) -> Pin<alloc::boxed::Box<T::Object>> {
         self.init(crate::container::Boxed)
@@ -147,13 +200,44 @@ impl<T: Constructor> PinDynify<T> {
 
 /// The core trait to package necessary information for object constructions.
 ///
+/// # Examples
+///
+/// ```rust
+/// # use dynify::{Constructor, Slot};
+/// # use std::any::Any;
+/// # use std::alloc::Layout;
+/// # use std::ptr::NonNull;
+/// struct I32Constructor(fn() -> i32);
+/// unsafe impl Constructor for I32Constructor {
+///     type Object = dyn Any;
+///     fn layout(&self) -> Layout {
+///         Layout::new::<i32>()
+///     }
+///     unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object> {
+///         slot.write((self.0)()) as NonNull<_>
+///     }
+/// }
+/// ```
+///
 /// # Safety
 ///
-/// The implementor must adhere to the documented contracts of each method.
+/// For the implementor:
+/// - It must adhere to the documented contracts of each method.
+/// - If [`Object`] requires to be constructed in pinned memory blocks, it must
+///   be ensured that the constructor cannot be used in non-pinned containers.
+///
+/// [`Object`]: Self::Object
 pub unsafe trait Constructor: Sized {
+    /// The type of objects to be constructed.
     type Object: ?Sized;
 
     /// Returns the layout of the object to be constructed.
+    ///
+    /// [`Object`] can be a sized or unsize type. In the former case, this
+    /// returns its layout. While in the latter case, this returns the layout of
+    /// the original type of the coerced DST.
+    ///
+    /// [`Object`]: Self::Object
     fn layout(&self) -> Layout;
 
     /// Constructs the object in the specified address.
@@ -165,8 +249,7 @@ pub unsafe trait Constructor: Sized {
     ///
     /// # Safety
     ///
-    /// The memory block that `slot` points to must meet the following
-    /// requirements:
+    /// The memory block owned by `slot` must meet the following requirements:
     ///
     /// - It satisfies the size and alignment constraints of the layout returned
     ///   from [`layout`](Self::layout).
@@ -175,7 +258,7 @@ pub unsafe trait Constructor: Sized {
     /// [`Object`]: Self::Object
     unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object>;
 
-    /// Wraps the constructor with [`Dynify`] for further usage.
+    /// Wraps the constructor with [`Dynify`] for further use.
     fn dynify(self) -> Dynify<Self> {
         Dynify(Initializer::new(self))
     }
@@ -187,14 +270,14 @@ pub unsafe trait Constructor: Sized {
     }
 }
 
-/// A memory block used in to store arbitrary objects.
+/// A memory block used to store arbitrary objects.
 pub struct Slot(crate::VoidPtr);
 impl Slot {
     /// Creates a new slot from the supplied pointer.
     ///
     /// # Safety
     ///
-    /// - The returned [`Slot`] may not be used outside of [`construct`].
+    /// - The returned instance may not be used outside of [`construct`].
     /// - [`Constructor`]s will write objects directly to the address of `ptr`,
     ///   hence `ptr` must meet all safety requirements of [`construct`].
     ///
@@ -222,21 +305,23 @@ impl Slot {
 /// # Example
 ///
 /// ```rust
-/// # use dynify::{Initializer, Container};
-/// # use dynify::r#priv::I32Constructor;
+/// # use dynify::{Buffered, Container, Fn, Initializer, from_fn};
 /// # use std::any::Any;
 /// let mut stack = [0u8; 32];
 /// let mut heap = vec![0u8; 0];
-/// let mut init = Initializer::new(I32Constructor);
-/// let any;
+///
+/// let constructor: Fn!(=> dyn Any) = from_fn!(|| 123);
+/// let mut init = Initializer::new(constructor);
+///
+/// let ret: Buffered<dyn Any>;
 /// // SAFETY: The constructor does not require pinned containers and will never
 /// // be consumed twice.
 /// if let Ok(p) = Container::emplace(&mut stack, unsafe { init.as_mut() }) {
-///     any = p;
+///     ret = p;
 /// } else {
-///     any = Container::emplace(&mut heap, unsafe { init.as_mut() }).expect("unreachable!")
+///     ret = Container::emplace(&mut heap, unsafe { init.as_mut() }).expect("unreachable!")
 /// };
-/// assert!(any.downcast_ref::<i32>().is_some());
+/// assert_eq!(ret.downcast_ref::<i32>(), Some(&123));
 /// ```
 pub struct Initializer<T>(Option<T>);
 impl<T> Initializer<T> {
@@ -254,7 +339,7 @@ impl<T> Initializer<T> {
     ///   constructor requires pinned memory blocks.
     /// - After it is [`consume`]d, `self` must either be [`drop`]ed or be
     ///   [`forget`]ed immediately. Future access will lead to *undefined
-    ///   behaviors*.
+    ///   behavior*.
     ///
     /// [`consume`]: InitializerRefMut::consume
     /// [`forget`]: core::mem::forget
@@ -264,7 +349,7 @@ impl<T> Initializer<T> {
 
     /// Returns an immutable reference to this initializer.
     pub fn as_ref(&self) -> InitializerRef<T> {
-        let inner = unsafe { unwrap_unchecked(self.0.as_ref()) };
+        let inner = unwrap_unchecked(self.0.as_ref());
         InitializerRef(inner)
     }
 }
@@ -282,31 +367,29 @@ impl<T> core::ops::Deref for InitializerRef<'_, T> {
 pub struct InitializerRefMut<'a, T>(&'a mut Option<T>);
 impl<T> InitializerRefMut<'_, T> {
     /// Consumes this initializer and returns the underlying constructor.
-    pub fn consume(mut self) -> T {
-        unsafe { self.consume_unchecked() }
-    }
-
-    /// Consumes this initializer without taking the ownship of `self`.
-    pub(crate) unsafe fn consume_unchecked(&mut self) -> T {
-        unsafe { unwrap_unchecked(self.0.take()) }
+    pub fn consume(self) -> T {
+        unwrap_unchecked(self.0.take())
     }
 }
 impl<T> core::ops::Deref for InitializerRefMut<'_, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        unsafe { unwrap_unchecked(self.0.as_ref()) }
+        unwrap_unchecked(self.0.as_ref())
     }
 }
 impl<T> core::ops::DerefMut for InitializerRefMut<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { unwrap_unchecked(self.0.as_mut()) }
+        unwrap_unchecked(self.0.as_mut())
     }
 }
 
-unsafe fn unwrap_unchecked<U>(opt: Option<U>) -> U {
+fn unwrap_unchecked<U>(opt: Option<U>) -> U {
     match opt {
         Some(t) => t,
-        None => {
+        // SAFETY: The validity of the constructor inside `Option` is guaranteed
+        // by the caller.
+        #[allow(unused_unsafe)]
+        None => unsafe {
             #[cfg(debug_assertions)]
             panic!("Initializer has been consumed");
             #[cfg(not(debug_assertions))]

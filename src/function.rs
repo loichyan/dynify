@@ -59,8 +59,7 @@ where
 
 /// Creates a constructor for the return type of the specified method.
 ///
-/// A method is a function of which receiver type is sealed with
-/// [`Receiver::seal`].
+/// A method is a function of which receiver is sealed with [`Receiver::seal`].
 ///
 /// # Safety
 ///
@@ -84,6 +83,12 @@ pub trait Function<Args> {
 }
 /// Wraps a function with its receiver type sealed.
 pub struct Method<Args, Ret>(PhantomData<fn(Args) -> Ret>);
+impl<Fn, R> Function<()> for Fn
+where
+    Fn: FnOnce() -> R,
+{
+    type Ret = R;
+}
 macro_rules! impl_function {
     ($a:ident $(,$i:ident)* -> $r:ident) => {
         impl<Fn, $a, $($i,)* $r> Function<($a, $($i,)*)> for Fn
@@ -124,7 +129,7 @@ impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P -> R); // 16 argum
 /// return type of the function. The type of returned constructors can be
 /// obtained with [`Fn`](crate::Fn).
 ///
-/// The supplied function must be a static symbol that can be resolved at
+/// The provided function must be a static item which can be resolved at
 /// compile-time; therefore, closures are not supported. For methods, the second
 /// parameter must be `self`; otherwise, the returned constructor falls back to
 /// a bare function constructor.
@@ -144,7 +149,7 @@ macro_rules! from_fn {
         $crate::__from_fn!([$self] $f, $self, $($args,)*)
     };
     ($f:expr $(,$args:ident)* $(,)?) => {
-        $crate::__from_fn!([] $f, $self, $($args,)*)
+        $crate::__from_fn!([] $f, $($args,)*)
     };
 }
 #[doc(hidden)]
