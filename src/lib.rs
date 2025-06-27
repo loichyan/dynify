@@ -20,10 +20,17 @@ pub use self::container::{Buffered, Container, PinContainer};
 /// NON-PUBLIC API
 #[doc(hidden)]
 pub mod r#priv {
-    pub use crate::function::Fn;
+    pub use crate::function::{from_bare_fn, from_method, Fn};
     pub use crate::receiver::{ArcSelf, BoxSelf, RcSelf, Receiver, RefMutSelf, RefSelf};
 
+    pub type PinRefSelf<'a> = crate::receiver::Pin<RefSelf<'a>>;
+    pub type PinRefMutSelf<'a> = crate::receiver::Pin<RefMutSelf<'a>>;
+    pub type PinBoxSelf = crate::receiver::Pin<BoxSelf>;
+    pub type PinRcSelf = crate::receiver::Pin<RcSelf>;
+    pub type PinArcSelf = crate::receiver::Pin<ArcSelf>;
+
     // ========== Items for doctest ==========
+
     pub struct I32Constructor;
     unsafe impl crate::Constructor for I32Constructor {
         type Object = dyn core::any::Any;
@@ -45,9 +52,6 @@ enum Void {}
 pub async fn test_example() {
     use std::future::Future;
     use std::mem::MaybeUninit;
-    use std::ptr::NonNull;
-
-    use crate::r#priv::*;
 
     pub trait Async {
         type Item;
@@ -65,7 +69,7 @@ pub async fn test_example() {
         fn foo<'a>(
             &'a mut self,
             arg: String,
-        ) -> PinDynify<Fn<(RefMutSelf<'a>, String), dyn 'a + Future<Output = Self::Item>>>;
+        ) -> PinDynify<Fn!(&'a mut Self, String => dyn 'a + Future<Output = Self::Item>)>;
     }
 
     impl<T: Async + Sized> DynAsync for T {
@@ -78,20 +82,8 @@ pub async fn test_example() {
         fn foo<'a>(
             &'a mut self,
             arg: String,
-        ) -> PinDynify<Fn<(RefMutSelf<'a>, String), dyn 'a + Future<Output = Self::Item>>> {
-            unsafe {
-                Fn::from_method(
-                    &<Self as Async>::foo,
-                    (Receiver::seal(self), arg),
-                    |slot, (this, arg)| {
-                        let this = Receiver::unseal(this);
-                        let out = <Self as Async>::foo(this, arg);
-                        let ptr = slot.write(out);
-                        ptr as NonNull<dyn Future<Output = T::Item>>
-                    },
-                )
-                .pin_dynify()
-            }
+        ) -> PinDynify<Fn!(&'a mut Self, String => dyn 'a + Future<Output = Self::Item>)> {
+            crate::from_fn!(<Self as Async>::foo, self, arg)
         }
     }
 
