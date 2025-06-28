@@ -122,35 +122,43 @@ impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M, N       -> R);
 impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O    -> R);
 impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P -> R); // 16 arguments
 
-/// Creates [`Constructor`] from static functions.
-///
-/// It accepts as its parameters the target function followed by all the
-/// arguments required to invoke that function, returning a constructor for the
-/// return type of the function. The type of returned constructors can be
-/// obtained with [`Fn`](crate::Fn).
-///
-/// The provided function must be a static item which can be resolved at
-/// compile-time; therefore, closures are not supported. For methods, the second
-/// parameter must be `self`; otherwise, the returned constructor falls back to
-/// a bare function constructor.
-///
-/// # Example
-///
-/// ```rust
-/// # use dynify::{Fn, from_fn};
-/// # use std::future::Future;
-/// async fn read_string(path: &str) -> String { String::new() }
-/// let path = "/tmp/file";
-/// let _: Fn!(_ => dyn Future<Output = String>) = from_fn!(read_string, path);
-/// ```
-#[macro_export]
-macro_rules! from_fn {
-    ($f:expr, $self:ident $(,$args:ident)* $(,)?) => {
-        $crate::__from_fn!([$self] $f, $self, $($args,)*)
+macro_rules! doc_macro {
+    ($(#[$attr:meta])* macro $name:ident $documented:tt $real:tt) => {
+        #[cfg(doc)] $(#[$attr])* macro_rules! $name $documented
+        #[cfg(not(doc))] $(#[$attr])* macro_rules! $name $real
     };
-    ($f:expr $(,$args:ident)* $(,)?) => {
-        $crate::__from_fn!([] $f, $($args,)*)
-    };
+}
+
+doc_macro! {
+    /// Creates [`Constructor`] from static functions.
+    ///
+    /// It accepts as its parameters the target function followed by all the
+    /// arguments required to invoke that function, returning a constructor for
+    /// the return type of the function. The type of returned constructors can
+    /// be obtained with [`Fn`](crate::Fn).
+    ///
+    /// The provided function must be a static item which can be resolved at
+    /// compile-time; therefore, closures are not supported. For methods, the
+    /// second parameter must be `self`; otherwise, the returned constructor
+    /// falls back to a bare function constructor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use dynify::{Fn, from_fn};
+    /// # use std::future::Future;
+    /// async fn read_string(path: &str) -> String { String::new() }
+    /// let path = "/tmp/file";
+    /// let _: Fn!(_ => dyn Future<Output = String>) = from_fn!(read_string, path);
+    /// ```
+    #[macro_export]
+    macro from_fn {
+        ($f:expr, $self:ident $(,$args:ident)*) => {};
+        ($f:expr $(,$args:ident)*) => {};
+    } {
+        ($f:expr, $self:ident $(,$args:ident)* $(,)?) => { $crate::__from_fn!([$self] $f, $self, $($args,)*) };
+        ($f:expr $(,$args:ident)* $(,)?) => { $crate::__from_fn!([] $f, $($args,)*) };
+    }
 }
 #[doc(hidden)]
 #[macro_export]
@@ -188,43 +196,56 @@ macro_rules! __from_fn {
     };
 }
 
-/// Determines the constructor type of a function.
-///
-/// It accepts as its parameters a list of argument types of the target function
-/// followed by a fat-arrow (`=>`) and the return type of that function,
-/// returning the type of constructors created by [`from_fn!`].
-///
-/// For method types, which are functions with a receiver type such as `&Self`,
-/// `&mut Self` or `Box<Self>` as the first parameter, this macro automatically
-/// selects an appropriate sealed type to make the constructor *dyn compatible*.
-///
-/// Note that the receiver type should not include the full path. Using types
-/// like `std::boxed::Box<Self>` will lead to an incorrect matching and cause
-/// the constructor type to be *dyn incompatible*. Nevertheless, it's not
-/// necessary to import these types beforehand.
-///
-/// If none of the supported receiver types matches, it falls back to a bare
-/// function type.
-///
-/// # Example
-///
-/// ```rust
-/// # use dynify::{Fn, from_fn};
-/// # use std::future::Future;
-/// async fn fetch_something(uri: &str) -> String {
-///     String::from("** mysterious text **")
-/// }
-/// fn dyn_fetch_something(uri: &str) -> Fn!(&str => dyn '_ + Future<Output = String>) {
-///     from_fn!(fetch_something, uri)
-/// }
-/// ```
+doc_macro! {
+    /// Determines the constructor type of a function.
+    ///
+    /// It accepts as its parameters a list of argument types of the target
+    /// function followed by a fat-arrow (`=>`) and the return type of that
+    /// function, returning the type of constructors created by [`from_fn!`].
+    ///
+    /// For method types, which are functions with a receiver type such as
+    /// `&Self`, `&mut Self` or `Box<Self>` as the first parameter, this macro
+    /// automatically selects an appropriate sealed type to make the constructor
+    /// *dyn compatible*.
+    ///
+    /// Note that the receiver type should not include the full path. Using
+    /// types like `std::boxed::Box<Self>` will lead to an incorrect matching
+    /// and cause the constructor type to be *dyn incompatible*. Nevertheless,
+    /// it's not necessary to import these types beforehand.
+    ///
+    /// If none of the supported receiver types matches, it falls back to a bare
+    /// function type.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use dynify::{Fn, from_fn};
+    /// # use std::future::Future;
+    /// async fn fetch_something(uri: &str) -> String {
+    ///     String::from("** mysterious text **")
+    /// }
+    /// fn dyn_fetch_something(uri: &str) -> Fn!(&str => dyn '_ + Future<Output = String>) {
+    ///     from_fn!(fetch_something, uri)
+    /// }
+    /// ```
+    #[macro_export]
+    macro Fn {
+        (_ => $ret:ty) => {};
+        ($Self:ty $(,$args:ty)* => $ret:ty) => {};
+        ($($args:ty),* => $ret:ty) => {};
+    } {
+        (_ => $ret:ty) => { $crate::r#priv::Fn<_, $ret> };
+        ($($args:tt)*) => { $crate::__Fn!($($args)*) };
+    }
+}
+#[doc(hidden)]
 #[macro_export]
-macro_rules! Fn {
-    (&$($lt:lifetime)? Self          $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::RefSelf$(<$lt>)*, $($args,)*), $ret> };
-    (&$($lt:lifetime)? mut Self      $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::RefMutSelf$(<$lt>)*, $($args,)*), $ret> };
-    (Box<Self>                       $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::BoxSelf, $($args,)*), $ret> };
-    (Rc<Self>                        $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::RcSelf, $($args,)*), $ret> };
-    (Arc<Self>                       $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::ArcSelf, $($args,)*), $ret> };
+macro_rules! __Fn {
+    (&$($lt:lifetime)? Self     $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::RefSelf$(<$lt>)*, $($args,)*), $ret> };
+    (&$($lt:lifetime)? mut Self $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::RefMutSelf$(<$lt>)*, $($args,)*), $ret> };
+    (Box<Self>                  $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::BoxSelf, $($args,)*), $ret> };
+    (Rc<Self>                   $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::RcSelf, $($args,)*), $ret> };
+    (Arc<Self>                  $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::ArcSelf, $($args,)*), $ret> };
 
     (Pin<&$($lt:lifetime)? Self>     $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::PinRefSelf$(<$lt>)*, $($args,)*), $ret> };
     (Pin<&$($lt:lifetime)? mut Self> $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::PinRefMutSelf$(<$lt>)*, $($args,)*), $ret> };
@@ -232,7 +253,6 @@ macro_rules! Fn {
     (Pin<Rc<Self>>                   $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::PinRcSelf, $($args,)*), $ret> };
     (Pin<Arc<Self>>                  $(,$args:ty)* => $ret:ty) => { $crate::r#priv::Fn<($crate::r#priv::PinArcSelf, $($args,)*), $ret> };
 
-    (_             => $ret:ty) => { $crate::r#priv::Fn<_, $ret> };
     ($($args:ty),* => $ret:ty) => { $crate::r#priv::Fn<($($args,)*), $ret> };
 }
 

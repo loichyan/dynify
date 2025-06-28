@@ -70,7 +70,7 @@ pub async fn test_example() {
             &'a mut self,
             arg: String,
         ) -> Dynify<Fn!(&'a mut Self, String => dyn 'a + Future<Output = Self::Item>)> {
-            crate::from_fn!(<Self as Async>::foo, self, arg)
+            from_fn!(<Self as Async>::foo, self, arg)
         }
     }
 
