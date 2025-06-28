@@ -201,7 +201,7 @@ doc_macro! {
     ///
     /// It accepts as its parameters a list of argument types of the target
     /// function followed by a fat-arrow (`=>`) and the return type of that
-    /// function, returning the type of constructors created by [`from_fn!`].
+    /// function, returning the type of constructors created by [`from_fn`].
     ///
     /// For method types, which are functions with a receiver type such as
     /// `&Self`, `&mut Self` or `Box<Self>` as the first parameter, this macro

@@ -6,7 +6,7 @@ use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::NonNull;
 
-use crate::constructor::{Constructor, InitializerRefMut, Slot};
+use crate::constructor::{Constructor, Slot};
 
 /// A one-time container used for in-place constructions.
 ///
@@ -14,10 +14,10 @@ use crate::constructor::{Constructor, InitializerRefMut, Slot};
 ///
 /// For the implementor,
 /// - It must adhere the documented contracts of each method.
-/// - If [`emplace`] succeeds, the provided initializer must be consumed, even
-///   if it is not used. Conversely, `init` must remain valid if [`emplace`]
-///   returns an error. Failing to follow either case results in *undefined
-///   behavior*.
+/// - If [`emplace`] succeeds, the provided constructor must be consumed through
+///   [`Constructor::construct`]. Conversely, `constructor` must remain
+///   untouched if [`emplace`] returns an error. Failing to follow either case
+///   results in *undefined behavior*.
 ///
 /// [`emplace`]: Self::emplace
 pub unsafe trait Container<T: ?Sized>: Sized {
@@ -27,9 +27,9 @@ pub unsafe trait Container<T: ?Sized>: Sized {
     /// Consumes this container and initializes the supplied constructor in it.
     ///
     /// If `self` cannot fit the layout of the target object, it does nothing
-    /// and returns an error. Otherwise, it consumes `init` and returns the
+    /// and returns an error. Otherwise, it consumes `constructor` and returns the
     /// pointer to the constructed object.
-    fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
+    fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>;
 }
@@ -46,7 +46,7 @@ pub unsafe trait PinContainer<T: ?Sized>: Container<T> {
     /// more information, see [`emplace`].
     ///
     /// [`emplace`]: Container::emplace
-    fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
+    fn pin_emplace<C>(self, constructor: C) -> Result<Pin<Self::Ptr>, Self::Err>
     where
         C: Constructor<Object = T>;
 }
@@ -71,7 +71,7 @@ pub unsafe trait PinContainer<T: ?Sized>: Container<T> {
 /// let fut: Buffered<dyn Future<Output = String>> = async_hello().init(&mut stack);
 /// // Pin it on the stack just as it has the type `T = dyn Future`.
 /// let fut: Pin<&mut Buffered<_>> = std::pin::pin!(fut);
-/// // Then project it to obtain a pinned reference to `T.`
+/// // Then project it to obtain a pinned reference to `T`.
 /// let fut: Pin<&mut dyn Future<Output = String>> = fut.project();
 /// assert_eq!(fut.await, "Hello!");
 /// # });
@@ -174,47 +174,47 @@ unsafe impl<'a, T: ?Sized, const N: usize> Container<T> for &'a mut [u8; N] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
-    fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
+    fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>,
     {
-        self.as_mut_slice().emplace(init)
+        self.as_mut_slice().emplace(constructor)
     }
 }
 unsafe impl<'a, T: ?Sized, const N: usize> Container<T> for &'a mut [MaybeUninit<u8>; N] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
-    fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
+    fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>,
     {
-        self.as_mut_slice().emplace(init)
+        self.as_mut_slice().emplace(constructor)
     }
 }
 unsafe impl<'a, T: ?Sized> Container<T> for &'a mut [u8] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
-    fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
+    fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>,
     {
         let maybe_uninit: &mut [MaybeUninit<u8>] = unsafe { core::mem::transmute(self) };
-        maybe_uninit.emplace(init)
+        maybe_uninit.emplace(constructor)
     }
 }
 unsafe impl<'a, T: ?Sized> Container<T> for &'a mut [MaybeUninit<u8>] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
-    fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
+    fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
     where
         C: Constructor<Object = T>,
     {
         unsafe {
-            let slot = buf_emplace(self, init.layout())?;
-            let ptr = init.consume().construct(slot);
+            let slot = buf_emplace(self, constructor.layout())?;
+            let ptr = constructor.construct(slot);
             Ok(Buffered::from_raw(ptr))
         }
     }
@@ -246,24 +246,24 @@ mod __alloc {
         type Ptr = Box<T>;
         type Err = Infallible;
 
-        fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
+        fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
         where
             C: Constructor<Object = T>,
         {
             unsafe {
-                let slot = box_emlace(init.layout());
-                let ptr = init.consume().construct(slot);
+                let slot = box_emlace(constructor.layout());
+                let ptr = constructor.construct(slot);
                 Ok(Box::from_raw(ptr.as_ptr()))
             }
         }
     }
     // Pinned box
     unsafe impl<T: ?Sized> PinContainer<T> for Boxed {
-        fn pin_emplace<C>(self, init: InitializerRefMut<C>) -> Result<Pin<Self::Ptr>, Self::Err>
+        fn pin_emplace<C>(self, constructor: C) -> Result<Pin<Self::Ptr>, Self::Err>
         where
             C: Constructor<Object = T>,
         {
-            self.emplace(init).map(Box::into_pin)
+            self.emplace(constructor).map(Box::into_pin)
         }
     }
     unsafe fn box_emlace(layout: Layout) -> Slot {
@@ -282,25 +282,25 @@ mod __alloc {
         type Ptr = Buffered<'a, T>;
         type Err = Infallible;
 
-        fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
+        fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
         where
             C: Constructor<Object = T>,
         {
             let maybe_uninit: &mut Vec<MaybeUninit<u8>> = unsafe { core::mem::transmute(self) };
-            maybe_uninit.emplace(init)
+            maybe_uninit.emplace(constructor)
         }
     }
     unsafe impl<'a, T: ?Sized> Container<T> for &'a mut Vec<MaybeUninit<u8>> {
         type Ptr = Buffered<'a, T>;
         type Err = Infallible;
 
-        fn emplace<C>(self, init: InitializerRefMut<C>) -> Result<Self::Ptr, Self::Err>
+        fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
         where
             C: Constructor<Object = T>,
         {
             unsafe {
-                let slot = vec_emplace(self, init.layout());
-                let ptr = init.consume().construct(slot);
+                let slot = vec_emplace(self, constructor.layout());
+                let ptr = constructor.construct(slot);
                 Ok(Buffered::from_raw(ptr))
             }
         }

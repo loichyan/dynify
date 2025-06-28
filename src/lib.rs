@@ -10,9 +10,7 @@ mod container;
 mod function;
 mod receiver;
 
-pub use self::constructor::{
-    Constructor, Dynify, Initializer, InitializerRef, InitializerRefMut, PinDynify, Slot,
-};
+pub use self::constructor::{Constructor, Dynify, PinDynify, Slot};
 #[cfg(feature = "alloc")]
 pub use self::container::Boxed;
 pub use self::container::{Buffered, Container, PinContainer};

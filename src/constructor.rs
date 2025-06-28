@@ -5,14 +5,14 @@ use core::ptr::NonNull;
 use crate::container::{Container, PinContainer};
 
 /// The main entrypoint used to perform in-place object constructions.
-pub struct Dynify<T>(Initializer<T>);
+pub struct Dynify<T>(T);
 impl<T> Dynify<T>
 where
     T: Constructor,
 {
     /// Returns the layout of the object to be constructed.
     pub fn layout(&self) -> Layout {
-        self.0.as_ref().layout()
+        self.0.layout()
     }
 
     /// Constructs the object in the supplied container.
@@ -34,19 +34,20 @@ where
     ///
     /// If the construction succeeds, it returns the pointer to the object.
     /// Otherwise, `self` is returned along with the encountered error.
-    pub fn try_init<C>(mut self, container: C) -> Result<C::Ptr, (Self, C::Err)>
+    pub fn try_init<C>(self, container: C) -> Result<C::Ptr, (Self, C::Err)>
     where
         C: Container<T::Object>,
     {
-        // SAFETY: `self` will never be accessed once the construction succeeds.
-        unsafe {
-            match container.emplace(self.0.as_mut()) {
-                Ok(p) => {
-                    core::mem::forget(self);
-                    Ok(p)
-                },
-                Err(e) => Err((self, e)),
-            }
+        let mut fallible = FallibleConstructor::new(self.0);
+        // SAFETY: `fallible` is dropped immediately after it gets consumed.
+        let handle = unsafe { fallible.handle() };
+        match container.emplace(handle) {
+            Ok(p) => {
+                debug_assert!(fallible.consumed());
+                core::mem::forget(fallible);
+                Ok(p)
+            },
+            Err(e) => Err((Self(fallible.into_inner()), e)),
         }
     }
 
@@ -104,11 +105,11 @@ where
 }
 
 /// A variant of [`Dynify`] that requires pinned containers.
-pub struct PinDynify<T>(Initializer<T>);
+pub struct PinDynify<T>(T);
 impl<T: Constructor> PinDynify<T> {
     /// Returns the layout of the object to be constructed.
     pub fn layout(&self) -> Layout {
-        self.0.as_ref().layout()
+        self.0.layout()
     }
 
     /// Constructs the object in the supplied container.
@@ -130,19 +131,20 @@ impl<T: Constructor> PinDynify<T> {
     ///
     /// If the construction succeeds, it returns the pointer to the object.
     /// Otherwise, `self` is returned along with the encountered error.
-    pub fn try_init<C>(mut self, container: C) -> Result<Pin<C::Ptr>, (Self, C::Err)>
+    pub fn try_init<C>(self, container: C) -> Result<Pin<C::Ptr>, (Self, C::Err)>
     where
         C: PinContainer<T::Object>,
     {
-        // SAFETY: `self` will never be accessed once the construction succeeds.
-        unsafe {
-            match container.pin_emplace(self.0.as_mut()) {
-                Ok(p) => {
-                    core::mem::forget(self);
-                    Ok(p)
-                },
-                Err(e) => Err((self, e)),
-            }
+        let mut fallible = FallibleConstructor::new(self.0);
+        // SAFETY: `fallible` is dropped immediately after it gets consumed.
+        let handle = unsafe { fallible.handle() };
+        match container.pin_emplace(handle) {
+            Ok(p) => {
+                debug_assert!(fallible.consumed());
+                core::mem::forget(fallible);
+                Ok(p)
+            },
+            Err(e) => Err((Self(fallible.into_inner()), e)),
         }
     }
 
@@ -260,13 +262,13 @@ pub unsafe trait Constructor: Sized {
 
     /// Wraps the constructor with [`Dynify`] for further use.
     fn dynify(self) -> Dynify<Self> {
-        Dynify(Initializer::new(self))
+        Dynify(self)
     }
 
     /// Wraps the constructor with [`PinDynify`] to ensure it is constructed in
     /// pinned containers.
     fn pin_dynify(self) -> PinDynify<Self> {
-        PinDynify(Initializer::new(self))
+        PinDynify(self)
     }
 }
 
@@ -300,86 +302,59 @@ impl Slot {
     }
 }
 
-/// A utility type that provides convenient methods for chained constructions.
-///
-/// # Example
-///
-/// ```rust
-/// # use dynify::{Buffered, Container, Fn, Initializer, from_fn};
-/// # use std::any::Any;
-/// let mut stack = [0u8; 32];
-/// let mut heap = vec![0u8; 0];
-///
-/// let constructor: Fn!(=> dyn Any) = from_fn!(|| 123);
-/// let mut init = Initializer::new(constructor);
-///
-/// let ret: Buffered<dyn Any>;
-/// // SAFETY: The constructor does not require pinned containers and will never
-/// // be consumed twice.
-/// if let Ok(p) = Container::emplace(&mut stack, unsafe { init.as_mut() }) {
-///     ret = p;
-/// } else {
-///     ret = Container::emplace(&mut heap, unsafe { init.as_mut() }).expect("unreachable!")
-/// };
-/// assert_eq!(ret.downcast_ref::<i32>(), Some(&123));
-/// ```
-pub struct Initializer<T>(Option<T>);
-impl<T> Initializer<T> {
+/// A utility type to reuse the inner constructor if construction fails.
+struct FallibleConstructor<T>(Option<T>);
+impl<T> FallibleConstructor<T> {
     /// Wraps the supplied constructor and returns a new instance.
     pub fn new(constructor: T) -> Self {
         Self(Some(constructor))
     }
 
-    /// Returns a mutable reference to this initializer.
+    /// Returns whether the inner constructor is consumed.
+    pub fn consumed(&self) -> bool {
+        self.0.is_none()
+    }
+
+    /// Consumes this instance, returning the inner constructor.
+    pub fn into_inner(self) -> T {
+        debug_assert!(!self.consumed());
+        unwrap_unchecked(self.0)
+    }
+
+    /// Returns a handle for fallible construction.
     ///
     /// # Safety
     ///
-    /// For the returned reference:
+    /// For the returned handle:
     /// - It may not be used in non-pinned containers if the underlying
     ///   constructor requires pinned memory blocks.
-    /// - After it is [`consume`]d, `self` must either be [`drop`]ed or be
+    /// - After it is [`construct`]ed, `self` must either be [`drop`]ed or
     ///   [`forget`]ed immediately. Future access will lead to *undefined
     ///   behavior*.
     ///
-    /// [`consume`]: InitializerRefMut::consume
+    /// [`construct`]: Constructor::construct
     /// [`forget`]: core::mem::forget
-    pub unsafe fn as_mut(&mut self) -> InitializerRefMut<T> {
-        InitializerRefMut(&mut self.0)
-    }
-
-    /// Returns an immutable reference to this initializer.
-    pub fn as_ref(&self) -> InitializerRef<T> {
-        let inner = unwrap_unchecked(self.0.as_ref());
-        InitializerRef(inner)
+    pub unsafe fn handle(&mut self) -> FallibleHandle<T> {
+        debug_assert!(!self.consumed());
+        FallibleHandle(&mut self.0)
     }
 }
 
-/// An immutable reference to [`Initializer`].
-pub struct InitializerRef<'a, T>(&'a T);
-impl<T> core::ops::Deref for InitializerRef<'_, T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        self.0
+/// The handle to perform fallible constructions.
+///
+/// If it is not consumed through [`construct`], the inner constructor remains
+/// valid. Otherwise, the inner value gets taken, leading to *undefined
+/// behavior* for future access.
+///
+/// [`construct`]: Constructor::construct
+struct FallibleHandle<'a, T>(&'a mut Option<T>);
+unsafe impl<T: Constructor> Constructor for FallibleHandle<'_, T> {
+    type Object = T::Object;
+    fn layout(&self) -> Layout {
+        unwrap_unchecked(self.0.as_ref()).layout()
     }
-}
-
-/// A mutable reference to [`Initializer`].
-pub struct InitializerRefMut<'a, T>(&'a mut Option<T>);
-impl<T> InitializerRefMut<'_, T> {
-    /// Consumes this initializer and returns the underlying constructor.
-    pub fn consume(self) -> T {
-        unwrap_unchecked(self.0.take())
-    }
-}
-impl<T> core::ops::Deref for InitializerRefMut<'_, T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        unwrap_unchecked(self.0.as_ref())
-    }
-}
-impl<T> core::ops::DerefMut for InitializerRefMut<'_, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unwrap_unchecked(self.0.as_mut())
+    unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object> {
+        unwrap_unchecked(self.0.take()).construct(slot)
     }
 }
 
@@ -388,12 +363,6 @@ fn unwrap_unchecked<U>(opt: Option<U>) -> U {
         Some(t) => t,
         // SAFETY: The validity of the constructor inside `Option` is guaranteed
         // by the caller.
-        #[allow(unused_unsafe)]
-        None => unsafe {
-            #[cfg(debug_assertions)]
-            panic!("Initializer has been consumed");
-            #[cfg(not(debug_assertions))]
-            core::hint::unreachable_unchecked();
-        },
+        None => unsafe { core::hint::unreachable_unchecked() },
     }
 }
