@@ -295,6 +295,21 @@ pub unsafe trait Construct: PinConstruct {
     }
 }
 
+unsafe impl<T: PinConstruct> PinConstruct for &'_ mut Option<T> {
+    type Object = T::Object;
+    fn layout(&self) -> Layout {
+        self.as_ref()
+            .expect("constructor has been consumed")
+            .layout()
+    }
+    unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object> {
+        self.take()
+            .expect("constructor has been consumed")
+            .construct(slot)
+    }
+}
+unsafe impl<T: Construct> Construct for &'_ mut Option<T> {}
+
 /// A memory block used to store arbitrary objects.
 pub struct Slot(crate::VoidPtr);
 impl Slot {
