@@ -106,7 +106,7 @@ where
 
 /// A variant of [`Dynify`] that requires pinned containers.
 pub struct PinDynify<T>(T);
-impl<T: Constructor> PinDynify<T> {
+impl<T: PinConstructor> PinDynify<T> {
     /// Returns the layout of the object to be constructed.
     pub fn layout(&self) -> Layout {
         self.0.layout()
@@ -205,12 +205,12 @@ impl<T: Constructor> PinDynify<T> {
 /// # Examples
 ///
 /// ```rust
-/// # use dynify::{Constructor, Slot};
+/// # use dynify::{Constructor, PinConstructor, Slot};
 /// # use std::any::Any;
 /// # use std::alloc::Layout;
 /// # use std::ptr::NonNull;
 /// struct I32Constructor(fn() -> i32);
-/// unsafe impl Constructor for I32Constructor {
+/// unsafe impl PinConstructor for I32Constructor {
 ///     type Object = dyn Any;
 ///     fn layout(&self) -> Layout {
 ///         Layout::new::<i32>()
@@ -219,17 +219,13 @@ impl<T: Constructor> PinDynify<T> {
 ///         slot.write((self.0)()) as NonNull<_>
 ///     }
 /// }
+/// unsafe impl Constructor for I32Constructor {}
 /// ```
 ///
 /// # Safety
 ///
-/// For the implementor:
-/// - It must adhere to the documented contracts of each method.
-/// - If [`Object`] requires to be constructed in pinned memory blocks, it must
-///   be ensured that the constructor cannot be used in non-pinned containers.
-///
-/// [`Object`]: Self::Object
-pub unsafe trait Constructor: Sized {
+/// The implementor must adhere to the documented contracts of each method.
+pub unsafe trait PinConstructor: Sized {
     /// The type of objects to be constructed.
     type Object: ?Sized;
 
@@ -257,18 +253,32 @@ pub unsafe trait Constructor: Sized {
     ///   from [`layout`](Self::layout).
     /// - It must be exclusive for this construction.
     ///
+    /// Furthermore, if `Self` does not implement [`Constructor`], the caller
+    /// must ensure the pinning requirements are upheld for the returned
+    /// pointer.
+    ///
     /// [`Object`]: Self::Object
     unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object>;
-
-    /// Wraps the constructor with [`Dynify`] for further use.
-    fn dynify(self) -> Dynify<Self> {
-        Dynify(self)
-    }
 
     /// Wraps the constructor with [`PinDynify`] to ensure it is constructed in
     /// pinned containers.
     fn pin_dynify(self) -> PinDynify<Self> {
         PinDynify(self)
+    }
+}
+
+/// A marker for constructors that do not require to be pinned.
+///
+/// # Safety
+///
+/// The implementor must ensure that the implementation of [`construct`] does
+/// not rely on a pinned slot.
+///
+/// [`construct`]: PinConstructor::construct
+pub unsafe trait Constructor: PinConstructor {
+    /// Wraps the constructor with [`Dynify`] for further use.
+    fn dynify(self) -> Dynify<Self> {
+        Dynify(self)
     }
 }
 
@@ -283,7 +293,7 @@ impl Slot {
     /// - [`Constructor`]s will write objects directly to the address of `ptr`,
     ///   hence `ptr` must meet all safety requirements of [`construct`].
     ///
-    /// [`construct`]: Constructor::construct
+    /// [`construct`]: PinConstructor::construct
     pub unsafe fn new(ptr: NonNull<u8>) -> Self {
         Self(ptr.cast())
     }
@@ -293,7 +303,7 @@ impl Slot {
     /// # Safety
     ///
     /// The object may not have a different layout than the one returned from
-    /// [`Constructor::layout`].
+    /// [`PinConstructor::layout`].
     pub unsafe fn write<T>(self, object: T) -> NonNull<T> {
         let ptr = self.0.cast::<T>();
         debug_assert!(ptr.is_aligned());
@@ -326,13 +336,14 @@ impl<T> FallibleConstructor<T> {
     /// # Safety
     ///
     /// For the returned handle:
+    ///
     /// - It may not be used in non-pinned containers if the underlying
     ///   constructor requires pinned memory blocks.
     /// - After it is [`construct`]ed, `self` must either be [`drop`]ed or
     ///   [`forget`]ed immediately. Future access will lead to *undefined
     ///   behavior*.
     ///
-    /// [`construct`]: Constructor::construct
+    /// [`construct`]: PinConstructor::construct
     /// [`forget`]: core::mem::forget
     pub unsafe fn handle(&mut self) -> FallibleHandle<T> {
         debug_assert!(!self.consumed());
@@ -348,7 +359,7 @@ impl<T> FallibleConstructor<T> {
 ///
 /// [`construct`]: Constructor::construct
 struct FallibleHandle<'a, T>(&'a mut Option<T>);
-unsafe impl<T: Constructor> Constructor for FallibleHandle<'_, T> {
+unsafe impl<T: PinConstructor> PinConstructor for FallibleHandle<'_, T> {
     type Object = T::Object;
     fn layout(&self) -> Layout {
         unwrap_unchecked(self.0.as_ref()).layout()
@@ -357,6 +368,7 @@ unsafe impl<T: Constructor> Constructor for FallibleHandle<'_, T> {
         unwrap_unchecked(self.0.take()).construct(slot)
     }
 }
+unsafe impl<T: Constructor> Constructor for FallibleHandle<'_, T> {}
 
 fn unwrap_unchecked<U>(opt: Option<U>) -> U {
     match opt {

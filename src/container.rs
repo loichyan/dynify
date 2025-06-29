@@ -6,19 +6,21 @@ use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::NonNull;
 
-use crate::constructor::{Constructor, Slot};
+use crate::constructor::{Constructor, PinConstructor, Slot};
 
 /// A one-time container used for in-place constructions.
 ///
 /// # Safety
 ///
 /// For the implementor,
+///
 /// - It must adhere the documented contracts of each method.
 /// - If [`emplace`] succeeds, the provided constructor must be consumed through
-///   [`Constructor::construct`]. Conversely, `constructor` must remain
-///   untouched if [`emplace`] returns an error. Failing to follow either case
-///   results in *undefined behavior*.
+///   [`construct`]. Conversely, `constructor` must remain untouched if
+///   [`emplace`] returns an error. Failing to follow either case results in
+///   *undefined behavior*.
 ///
+/// [`construct`]: PinConstructor::construct
 /// [`emplace`]: Self::emplace
 pub unsafe trait Container<T: ?Sized>: Sized {
     type Ptr: core::ops::Deref<Target = T>;
@@ -48,7 +50,7 @@ pub unsafe trait PinContainer<T: ?Sized>: Container<T> {
     /// [`emplace`]: Container::emplace
     fn pin_emplace<C>(self, constructor: C) -> Result<Pin<Self::Ptr>, Self::Err>
     where
-        C: Constructor<Object = T>;
+        C: PinConstructor<Object = T>;
 }
 
 /// A pointer to objects stored in buffers.
@@ -250,20 +252,21 @@ mod __alloc {
         where
             C: Constructor<Object = T>,
         {
-            unsafe {
-                let slot = box_emlace(constructor.layout());
-                let ptr = constructor.construct(slot);
-                Ok(Box::from_raw(ptr.as_ptr()))
-            }
+            self.pin_emplace(constructor)
+                .map(|b| unsafe { Pin::into_inner_unchecked(b) })
         }
     }
     // Pinned box
     unsafe impl<T: ?Sized> PinContainer<T> for Boxed {
         fn pin_emplace<C>(self, constructor: C) -> Result<Pin<Self::Ptr>, Self::Err>
         where
-            C: Constructor<Object = T>,
+            C: PinConstructor<Object = T>,
         {
-            self.emplace(constructor).map(Box::into_pin)
+            unsafe {
+                let slot = box_emlace(constructor.layout());
+                let ptr = constructor.construct(slot);
+                Ok(Box::into_pin(Box::from_raw(ptr.as_ptr())))
+            }
         }
     }
     unsafe fn box_emlace(layout: Layout) -> Slot {

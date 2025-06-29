@@ -2,7 +2,7 @@ use core::alloc::Layout;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::constructor::{Constructor, Slot};
+use crate::constructor::{Constructor, PinConstructor, Slot};
 use crate::receiver::Receiver;
 
 /// A constructor for the return type of functions.
@@ -11,7 +11,8 @@ pub struct Fn<Args, Ret: ?Sized> {
     init: unsafe fn(Slot, Args) -> NonNull<Ret>,
     args: Args,
 }
-unsafe impl<Args, Ret: ?Sized> Constructor for Fn<Args, Ret> {
+
+unsafe impl<Args, Ret: ?Sized> PinConstructor for Fn<Args, Ret> {
     type Object = Ret;
     unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object> {
         (self.init)(slot, self.args)
@@ -20,6 +21,8 @@ unsafe impl<Args, Ret: ?Sized> Constructor for Fn<Args, Ret> {
         self.layout
     }
 }
+unsafe impl<Args, Ret: ?Sized> Constructor for Fn<Args, Ret> {}
+
 impl<Args, Ret: ?Sized> From<Fn<Args, Ret>> for crate::constructor::Dynify<Fn<Args, Ret>> {
     fn from(value: Fn<Args, Ret>) -> Self {
         value.dynify()
