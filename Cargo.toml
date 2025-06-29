@@ -18,4 +18,9 @@ alloc = []
 [dev-dependencies]
 fastrand = "2.3.0"
 pollster = { version = "0.4.0", features = ["macro"] }
+rstest = { version = "0.25.0", default-features = false }
 trybuild = "1.0.105"
+
+[lints.rust]
+unexpected_cfgs.level = "warn"
+unexpected_cfgs.check-cfg = ["cfg(coverage)", "cfg(coverage_nightly)"]

@@ -253,30 +253,7 @@ macro_rules! __Fn {
     ($($args:ty),* => $ret:ty) => { $crate::r#priv::Fn<($($args,)*), $ret> };
 }
 
-#[test]
-fn check_return_type_layout() {
-    use std::any::Any;
-    use std::convert::Infallible;
-
-    pub const fn layout<A, F: Function<A>>(_: &F) -> Layout {
-        Layout::new::<F::Ret>()
-    }
-
-    fn f1(_: usize, _: usize) -> usize {
-        todo!()
-    }
-    fn f2(_: &str) -> &str {
-        todo!()
-    }
-    fn f3(_: String, _: Vec<u8>, _: &dyn Any) -> Box<dyn Any> {
-        todo!()
-    }
-    fn f4(_: usize, _: usize) -> Infallible {
-        todo!()
-    }
-
-    assert_eq!(layout(&f1), Layout::new::<usize>());
-    assert_eq!(layout(&f2), Layout::new::<&str>());
-    assert_eq!(layout(&f3), Layout::new::<Box<dyn Any>>());
-    assert_eq!(layout(&f4), Layout::new::<Infallible>());
-}
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+#[path = "function_tests.rs"]
+mod tests;

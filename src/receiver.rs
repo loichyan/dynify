@@ -161,3 +161,49 @@ mod __alloc {
 }
 #[cfg(feature = "alloc")]
 pub use __alloc::*;
+
+#[cfg(test)]
+mod tests {
+    use std::pin::Pin;
+    use std::rc::Rc;
+    use std::sync::Arc;
+
+    use rstest::rstest;
+
+    use super::*;
+    use crate::utils::DropCounter;
+
+    struct FakeSelf(i32);
+
+    #[rstest]
+    #[case(& FakeSelf(1))]
+    #[case(&mut FakeSelf(2))]
+    #[case(Box::new(FakeSelf(3)))]
+    #[case(Rc::new(FakeSelf(4)))]
+    #[case(Arc::new(FakeSelf(5)))]
+    #[case(Pin::new(Box::new(FakeSelf(6))))]
+    fn unsealed_ptr_matches_original<R>(#[case] orig: R)
+    where
+        R: Receiver<Target = FakeSelf>,
+    {
+        let orig_addr = std::ptr::from_ref(&*orig);
+        let orig_val = orig.0;
+        let sealed = orig.seal();
+        let curr = unsafe { R::unseal(sealed) };
+        let curr_addr = std::ptr::from_ref(&*curr);
+        let curr_val = curr.0;
+        assert_eq!(curr_addr, orig_addr);
+        assert_eq!(curr_val, orig_val);
+    }
+
+    #[rstest]
+    #[case(Box::new(DropCounter))]
+    #[case(Rc::new(DropCounter))]
+    #[case(Arc::new(DropCounter))]
+    #[case(Pin::new(Rc::new(DropCounter)))]
+    fn sealed_ptr_drop_works(#[case] recv: impl Receiver) {
+        assert_eq!(DropCounter::count(), 0);
+        drop(recv);
+        assert_eq!(DropCounter::count(), 1);
+    }
+}

@@ -19,8 +19,16 @@ where
     unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object> {
         let mut uninit = slot.write(MaybeUninit::<T>::uninit());
         let ptr = (self.0)(uninit.as_mut());
-        assert_eq!(ptr as *const U as *const (), uninit.as_ptr() as *const ());
-        assert_eq!(Layout::for_value(ptr), Layout::new::<T>());
+        assert_eq!(
+            ptr as *const U as *const (),
+            uninit.as_ptr() as *const (),
+            "address mismatches"
+        );
+        assert_eq!(
+            Layout::for_value(ptr),
+            Layout::new::<T>(),
+            "layout mismatches"
+        );
         NonNull::from(ptr)
     }
 }
@@ -67,4 +75,31 @@ where
     F: FnOnce(&mut MaybeUninit<T>) -> &mut U,
 {
     Closure(f, PhantomData)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::{randstr, StrFut};
+    use crate::{Dynify, PinDynify};
+
+    #[pollster::test]
+    async fn from_closure_works() {
+        let inp = randstr(8..64);
+        let init = from_closure(|slot| slot.write(async { inp.clone() }) as &mut StrFut);
+        assert_eq!(init.pin_boxed().await, inp);
+    }
+
+    #[test]
+    #[should_panic = "address mismatches"]
+    #[cfg_attr(miri, ignore)] // ignore memory leaks
+    fn panic_on_bad_addr() {
+        from_closure(|_: &mut MaybeUninit<i32>| Box::leak(Box::new(123))).boxed();
+    }
+
+    #[test]
+    #[should_panic = "layout mismatches"]
+    fn panic_on_bad_layout() {
+        from_closure(|slot| &mut slot.write((123, 456)).0).boxed();
+    }
 }

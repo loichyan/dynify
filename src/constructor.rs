@@ -398,3 +398,8 @@ fn unwrap_unchecked<U>(opt: Option<U>) -> U {
         None => unsafe { core::hint::unreachable_unchecked() },
     }
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+#[path = "constructor_tests.rs"]
+mod tests;

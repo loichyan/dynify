@@ -366,6 +366,12 @@ mod __alloc {
 #[cfg(feature = "alloc")]
 pub use __alloc::*;
 
+// TODO: is it possible to use strict provenance APIs?
 unsafe fn dangling_slot(layout: Layout) -> Slot {
     Slot::new(NonNull::new_unchecked(layout.align() as *mut u8))
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+#[path = "container_tests.rs"]
+mod tests;

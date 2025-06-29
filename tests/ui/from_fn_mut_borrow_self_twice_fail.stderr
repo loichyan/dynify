@@ -1,5 +1,5 @@
 error[E0499]: cannot borrow `test` as mutable more than once at a time
-  --> tests/ui/from_fn_mut_borrow_twice_fail.rs:15:17
+  --> tests/ui/from_fn_mut_borrow_self_twice_fail.rs:15:17
    |
 14 |     let init1 = test.test();
    |                 ---- first mutable borrow occurs here

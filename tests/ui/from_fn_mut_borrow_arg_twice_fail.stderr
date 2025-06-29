@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `data` as mutable more than once at a time
+  --> tests/ui/from_fn_mut_borrow_arg_twice_fail.rs:16:27
+   |
+15 |     let init1 = test.test(&mut data);
+   |                           --------- first mutable borrow occurs here
+16 |     let init2 = test.test(&mut data); // fails
+   |                           ^^^^^^^^^ second mutable borrow occurs here
+17 |     drop((init1, init2));
+   |           ----- first borrow later used here
