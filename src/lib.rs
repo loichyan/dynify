@@ -13,7 +13,7 @@ mod receiver;
 pub use self::constructor::{Construct, Dynify, PinConstruct, PinDynify, Slot};
 #[cfg(feature = "alloc")]
 pub use self::container::Boxed;
-pub use self::container::{Buffered, Container, PinContainer};
+pub use self::container::{Buffered, Emplace, OutOfCapacity, PinEmplace};
 
 /// NON-PUBLIC API
 #[doc(hidden)]

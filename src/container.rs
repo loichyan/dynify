@@ -10,6 +10,13 @@ use crate::constructor::{Construct, PinConstruct, Slot};
 
 /// A one-time container used for in-place constructions.
 ///
+/// A type that implements [`Emplace`] is called a *container*. Each container
+/// holds a unique memory block for object constructions. This memory block may
+/// have a fixed capacity or grow dynamically. A fixed-size container may reject
+/// construction if it lacks sufficient free space to put the target object. In
+/// this case, the caller is responsible for preserving the provided
+/// constructor, which can be done by wrapping the constructor in [`Option`].
+///
 /// # Safety
 ///
 /// For the implementor,
@@ -22,7 +29,7 @@ use crate::constructor::{Construct, PinConstruct, Slot};
 ///
 /// [`construct`]: PinConstruct::construct
 /// [`emplace`]: Self::emplace
-pub unsafe trait Container<T: ?Sized>: Sized {
+pub unsafe trait Emplace<T: ?Sized>: Sized {
     type Ptr: core::ops::Deref<Target = T>;
     type Err;
 
@@ -36,21 +43,40 @@ pub unsafe trait Container<T: ?Sized>: Sized {
         C: Construct<Object = T>;
 }
 
-/// A variant of [`Container`] used for pinned constructions.
+/// A variant of [`Emplace`] used for pinned constructions.
+///
+/// A *pinned container* holds a memory block with a stable address, which
+/// enables it to store objects that cannot be moved once constructed.
 ///
 /// # Safety
 ///
-/// See the safety notes of [`Container`].
-pub unsafe trait PinContainer<T: ?Sized>: Container<T> {
+/// See the safety notes of [`Emplace`]. Additionally, the implementor must
+/// uphold the pinning requirements for the constructed objects.
+pub unsafe trait PinEmplace<T: ?Sized>: Emplace<T> {
     /// Initializes the supplied constructor in a pinned memory block.
     ///
     /// It returns a pinned pointer to the constructed object if successful. For
     /// more information, see [`emplace`].
     ///
-    /// [`emplace`]: Container::emplace
+    /// [`emplace`]: Emplace::emplace
     fn pin_emplace<C>(self, constructor: C) -> Result<Pin<Self::Ptr>, Self::Err>
     where
-        C: PinConstruct<Object = T>;
+        C: PinConstruct<Object = T>,
+    {
+        struct UncheckedPinConstructor<C>(C);
+        unsafe impl<C: PinConstruct> PinConstruct for UncheckedPinConstructor<C> {
+            type Object = C::Object;
+            fn layout(&self) -> Layout {
+                self.0.layout()
+            }
+            unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object> {
+                self.0.construct(slot)
+            }
+        }
+        unsafe impl<C: PinConstruct> Construct for UncheckedPinConstructor<C> {}
+        self.emplace(UncheckedPinConstructor(constructor))
+            .map(|p| unsafe { Pin::new_unchecked(p) })
+    }
 }
 
 /// A pointer to objects stored in buffers.
@@ -71,7 +97,7 @@ pub unsafe trait PinContainer<T: ?Sized>: Container<T> {
 ///
 /// let mut stack = [0u8; 32];
 /// let fut: Buffered<dyn Future<Output = String>> = async_hello().init(&mut stack);
-/// // Pin it on the stack just as it has the type `T = dyn Future`.
+/// // Pin it on the stack just as it has the inner type `T = dyn Future`.
 /// let fut: Pin<&mut Buffered<_>> = std::pin::pin!(fut);
 /// // Then project it to obtain a pinned reference to `T`.
 /// let fut: Pin<&mut dyn Future<Output = String>> = fut.project();
@@ -87,7 +113,7 @@ impl<'a, T: ?Sized> Buffered<'a, T> {
     ///
     /// # Safety
     ///
-    /// `ptr` must be a valid pointer to `T`, and be exclusive for the returned
+    /// `ptr` must be a valid pointer to `T` and exclusive for the returned
     /// instance.
     pub unsafe fn from_raw(ptr: NonNull<T>) -> Self {
         Self(ptr, PhantomData)
@@ -117,17 +143,18 @@ impl<'a, T: ?Sized> Buffered<'a, T> {
     }
 }
 
-// Pretend `Buffered` owns the value of `T` rather than a pointer to it. This,
-// along with the `Buffered::project*` APIs, makes it easy to obtain a pinned
-// reference to `T` in safe Rust. But the downside is that this prevents
-// `Buffered` from being `Unpin` redardless of whether `T` is `Unpin` or not.
-// Nevertheless, in most cases, simply pinning a pointer is not useful.
+// Pretend `Buffered` owns the value of `T` rather than just a pointer to it.
+// This, along with the `Buffered::project*` APIs, makes it easy to obtain a
+// pinned reference to `T` in safe Rust. But the downside is that this prevents
+// `Buffered` from being `Unpin` if `T` is not `Unpin`, which is unexpected for
+// a pointer type. Nevertheless, in most cases, pinning a pointer is not
+// particularly useful.
 //
-// We cannot provide `Buffered::into_pin`, even if the container has a `'static`
-// lifetime. This is because containers do not guarantee that the memory region
-// allocated to us will not be overwritten if `Buffered` is leaked through
-// `std::mem::forget`. This violation undermines the drop guarantee required by
-// `Pin`. For more information, see <https://github.com/fitzgen/bumpalo/issues/186>.
+// Besides, we cannot provide `Buffered::into_pin` even if the container has a
+// `'static` lifetime. This is because containers do not guarantee that the
+// memory region allocated to us will not be overwritten if `Buffered` is leaked
+// through `std::mem::forget`. This violation undermines the drop guarantee
+// required by `Pin`. For more information, see <https://github.com/fitzgen/bumpalo/issues/186>.
 impl<T: ?Sized + Unpin> Unpin for Buffered<'_, T> {}
 impl<T: ?Sized> Drop for Buffered<'_, T> {
     fn drop(&mut self) {
@@ -172,7 +199,7 @@ impl fmt::Display for OutOfCapacity {
 }
 
 // Normal buffer
-unsafe impl<'a, T: ?Sized, const N: usize> Container<T> for &'a mut [u8; N] {
+unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut [u8; N] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
@@ -183,7 +210,7 @@ unsafe impl<'a, T: ?Sized, const N: usize> Container<T> for &'a mut [u8; N] {
         self.as_mut_slice().emplace(constructor)
     }
 }
-unsafe impl<'a, T: ?Sized, const N: usize> Container<T> for &'a mut [MaybeUninit<u8>; N] {
+unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut [MaybeUninit<u8>; N] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
@@ -194,7 +221,7 @@ unsafe impl<'a, T: ?Sized, const N: usize> Container<T> for &'a mut [MaybeUninit
         self.as_mut_slice().emplace(constructor)
     }
 }
-unsafe impl<'a, T: ?Sized> Container<T> for &'a mut [u8] {
+unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut [u8] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
@@ -206,7 +233,7 @@ unsafe impl<'a, T: ?Sized> Container<T> for &'a mut [u8] {
         maybe_uninit.emplace(constructor)
     }
 }
-unsafe impl<'a, T: ?Sized> Container<T> for &'a mut [MaybeUninit<u8>] {
+unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut [MaybeUninit<u8>] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
@@ -244,7 +271,7 @@ mod __alloc {
     /// A unit type to perform constructions in [`Box`].
     pub struct Boxed;
     // Normal box
-    unsafe impl<T: ?Sized> Container<T> for Boxed {
+    unsafe impl<T: ?Sized> Emplace<T> for Boxed {
         type Ptr = Box<T>;
         type Err = Infallible;
 
@@ -252,23 +279,15 @@ mod __alloc {
         where
             C: Construct<Object = T>,
         {
-            self.pin_emplace(constructor)
-                .map(|b| unsafe { Pin::into_inner_unchecked(b) })
-        }
-    }
-    // Pinned box
-    unsafe impl<T: ?Sized> PinContainer<T> for Boxed {
-        fn pin_emplace<C>(self, constructor: C) -> Result<Pin<Self::Ptr>, Self::Err>
-        where
-            C: PinConstruct<Object = T>,
-        {
             unsafe {
                 let slot = box_emlace(constructor.layout());
                 let ptr = constructor.construct(slot);
-                Ok(Box::into_pin(Box::from_raw(ptr.as_ptr())))
+                Ok(Box::from_raw(ptr.as_ptr()))
             }
         }
     }
+    // Pinned box
+    unsafe impl<T: ?Sized> PinEmplace<T> for Boxed {}
     unsafe fn box_emlace(layout: Layout) -> Slot {
         let slot = match layout.size() {
             0 => NonNull::new_unchecked(layout.align() as *mut u8),
@@ -281,7 +300,7 @@ mod __alloc {
 
     // Normal vector
     // TODO: pinned vector?
-    unsafe impl<'a, T: ?Sized> Container<T> for &'a mut Vec<u8> {
+    unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut Vec<u8> {
         type Ptr = Buffered<'a, T>;
         type Err = Infallible;
 
@@ -293,7 +312,7 @@ mod __alloc {
             maybe_uninit.emplace(constructor)
         }
     }
-    unsafe impl<'a, T: ?Sized> Container<T> for &'a mut Vec<MaybeUninit<u8>> {
+    unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut Vec<MaybeUninit<u8>> {
         type Ptr = Buffered<'a, T>;
         type Err = Infallible;
 

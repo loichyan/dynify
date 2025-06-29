@@ -2,7 +2,7 @@ use core::alloc::Layout;
 use core::pin::Pin;
 use core::ptr::NonNull;
 
-use crate::container::{Container, PinContainer};
+use crate::container::{Emplace, PinEmplace};
 
 /// The main entrypoint used to perform in-place object constructions.
 pub struct Dynify<T>(T);
@@ -24,7 +24,7 @@ where
     /// It panics if `container` fails to construct the object.
     pub fn init<C>(self, container: C) -> C::Ptr
     where
-        C: Container<T::Object>,
+        C: Emplace<T::Object>,
     {
         self.try_init(container)
             .unwrap_or_else(|_| panic!("failed to initialize"))
@@ -36,7 +36,7 @@ where
     /// Otherwise, `self` is returned along with the encountered error.
     pub fn try_init<C>(self, container: C) -> Result<C::Ptr, (Self, C::Err)>
     where
-        C: Container<T::Object>,
+        C: Emplace<T::Object>,
     {
         let mut fallible = FallibleConstruct::new(self.0);
         // SAFETY: `fallible` is dropped immediately after it gets consumed.
@@ -75,8 +75,8 @@ where
     /// It panics if both containers fail to construct the object.
     pub fn init2<P, C1, C2>(self, container1: C1, container2: C2) -> P
     where
-        C1: Container<T::Object, Ptr = P>,
-        C2: Container<T::Object, Ptr = P>,
+        C1: Emplace<T::Object, Ptr = P>,
+        C2: Emplace<T::Object, Ptr = P>,
     {
         self.try_init2(container1, container2)
             .unwrap_or_else(|_| panic!("failed to initialize"))
@@ -88,8 +88,8 @@ where
     /// it forwards the error returned from `container2`.
     pub fn try_init2<P, C1, C2>(self, container1: C1, container2: C2) -> Result<P, (Self, C2::Err)>
     where
-        C1: Container<T::Object, Ptr = P>,
-        C2: Container<T::Object, Ptr = P>,
+        C1: Emplace<T::Object, Ptr = P>,
+        C2: Emplace<T::Object, Ptr = P>,
     {
         self.try_init(container1)
             .or_else(|(this, _)| this.try_init(container2))
@@ -121,7 +121,7 @@ impl<T: PinConstruct> PinDynify<T> {
     /// It panics if `container` fails to construct the object.
     pub fn init<C>(self, container: C) -> Pin<C::Ptr>
     where
-        C: PinContainer<T::Object>,
+        C: PinEmplace<T::Object>,
     {
         self.try_init(container)
             .unwrap_or_else(|_| panic!("failed to initialize"))
@@ -133,7 +133,7 @@ impl<T: PinConstruct> PinDynify<T> {
     /// Otherwise, `self` is returned along with the encountered error.
     pub fn try_init<C>(self, container: C) -> Result<Pin<C::Ptr>, (Self, C::Err)>
     where
-        C: PinContainer<T::Object>,
+        C: PinEmplace<T::Object>,
     {
         let mut fallible = FallibleConstruct::new(self.0);
         // SAFETY: `fallible` is dropped immediately after it gets consumed.
@@ -157,8 +157,8 @@ impl<T: PinConstruct> PinDynify<T> {
     /// It panics if both containers fail to construct the object.
     pub fn init2<P, C1, C2>(self, container1: C1, container2: C2) -> Pin<P>
     where
-        C1: PinContainer<T::Object, Ptr = P>,
-        C2: PinContainer<T::Object, Ptr = P>,
+        C1: PinEmplace<T::Object, Ptr = P>,
+        C2: PinEmplace<T::Object, Ptr = P>,
     {
         self.try_init2(container1, container2)
             .unwrap_or_else(|_| panic!("failed to initialize"))
@@ -174,8 +174,8 @@ impl<T: PinConstruct> PinDynify<T> {
         container2: C2,
     ) -> Result<Pin<P>, (Self, C2::Err)>
     where
-        C1: PinContainer<T::Object, Ptr = P>,
-        C2: PinContainer<T::Object, Ptr = P>,
+        C1: PinEmplace<T::Object, Ptr = P>,
+        C2: PinEmplace<T::Object, Ptr = P>,
     {
         self.try_init(container1)
             .or_else(|(this, _)| this.try_init(container2))
