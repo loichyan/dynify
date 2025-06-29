@@ -102,6 +102,12 @@ where
     pub fn boxed(self) -> alloc::boxed::Box<T::Object> {
         self.init(crate::container::Boxed)
     }
+
+    /// Constructs the object in pinned [`Box`](alloc::boxed::Box).
+    #[cfg(feature = "alloc")]
+    pub fn pin_boxed(self) -> Pin<alloc::boxed::Box<T::Object>> {
+        alloc::boxed::Box::into_pin(self.init(crate::container::Boxed))
+    }
 }
 
 /// A variant of [`Dynify`] that requires pinned containers.
@@ -253,16 +259,20 @@ pub unsafe trait PinConstruct: Sized {
     /// Constructs the object in the specified address.
     ///
     /// This function will write the object to `slot` and therefore overwrite
-    /// existing data at the address of `slot`. The returned pointer have the
-    /// same address as `slot` and may contain additional metadata if [`Object`]
-    /// is unsized.
+    /// existing data at the address of `slot`. For the returned pointer, the
+    /// following statements are always true:
+    ///
+    /// - It has the same address as the memory block owned by `slot`.
+    /// - It may contain additional metadata if [`Object`] is unsized.
+    /// - Invoking [`Layout::for_value`] with the deference of it returns a
+    ///   layout that matches the one from [`Self::layout`] exactly.
     ///
     /// # Safety
     ///
     /// The memory block owned by `slot` must meet the following requirements:
     ///
     /// - It satisfies the size and alignment constraints of the layout returned
-    ///   from [`layout`](Self::layout).
+    ///   from [`Self::layout`].
     /// - It must be exclusive for this construction.
     ///
     /// Furthermore, if `Self` does not implement [`Construct`], the caller
@@ -338,6 +348,11 @@ impl Slot {
         ptr.write(object);
         ptr
     }
+
+    /// Consumes this instance, returning a raw pointer to the memory block.
+    pub fn into_raw(self) -> NonNull<u8> {
+        self.0.cast()
+    }
 }
 
 /// A utility type to reuse the inner constructor if construction fails.
@@ -373,7 +388,7 @@ impl<T> FallibleConstruct<T> {
     ///
     /// [`construct`]: PinConstruct::construct
     /// [`forget`]: core::mem::forget
-    pub unsafe fn handle(&mut self) -> FallibleHandle<T> {
+    pub unsafe fn handle(&mut self) -> FallibleHandle<'_, T> {
         debug_assert!(!self.consumed());
         FallibleHandle(&mut self.0)
     }

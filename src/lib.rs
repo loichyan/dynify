@@ -5,11 +5,13 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+mod closure;
 mod constructor;
 mod container;
 mod function;
 mod receiver;
 
+pub use self::closure::from_closure;
 pub use self::constructor::{Construct, Dynify, PinConstruct, PinDynify, Slot};
 #[cfg(feature = "alloc")]
 pub use self::container::Boxed;
