@@ -249,6 +249,10 @@ unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut [MaybeUninit<u8>] {
     }
 }
 unsafe fn buf_emplace(buf: &mut [MaybeUninit<u8>], layout: Layout) -> Result<Slot, OutOfCapacity> {
+    if layout.size() == 0 {
+        return Ok(dangling_slot(layout));
+    }
+
     let start = buf.as_mut_ptr();
     let align_offset = start.align_offset(layout.align());
     let total_bytes = align_offset + layout.size();
@@ -289,12 +293,12 @@ mod __alloc {
     // Pinned box
     unsafe impl<T: ?Sized> PinEmplace<T> for Boxed {}
     unsafe fn box_emlace(layout: Layout) -> Slot {
-        let slot = match layout.size() {
-            0 => NonNull::new_unchecked(layout.align() as *mut u8),
-            // SAFETY: `layout` is non-zero in size,
-            _ => unsafe { NonNull::new(alloc::alloc::alloc(layout)) }
-                .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout)),
-        };
+        if layout.size() == 0 {
+            return dangling_slot(layout);
+        }
+        // SAFETY: `layout` is non-zero in size,
+        let slot = NonNull::new(alloc::alloc::alloc(layout))
+            .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout));
         Slot::new(slot)
     }
 
@@ -328,6 +332,10 @@ mod __alloc {
         }
     }
     unsafe fn vec_emplace(vec: &mut Vec<MaybeUninit<u8>>, layout: Layout) -> Slot {
+        if layout.size() == 0 {
+            return dangling_slot(layout);
+        }
+
         let mut buf = vec.as_mut_ptr();
         let mut align_offset = buf.align_offset(layout.align());
         let total_bytes = align_offset + layout.size();
@@ -343,3 +351,7 @@ mod __alloc {
 }
 #[cfg(feature = "alloc")]
 pub use __alloc::*;
+
+unsafe fn dangling_slot(layout: Layout) -> Slot {
+    Slot::new(NonNull::new_unchecked(layout.align() as *mut u8))
+}
