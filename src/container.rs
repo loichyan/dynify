@@ -6,7 +6,7 @@ use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::NonNull;
 
-use crate::constructor::{Constructor, PinConstructor, Slot};
+use crate::constructor::{Construct, PinConstruct, Slot};
 
 /// A one-time container used for in-place constructions.
 ///
@@ -20,7 +20,7 @@ use crate::constructor::{Constructor, PinConstructor, Slot};
 ///   [`emplace`] returns an error. Failing to follow either case results in
 ///   *undefined behavior*.
 ///
-/// [`construct`]: PinConstructor::construct
+/// [`construct`]: PinConstruct::construct
 /// [`emplace`]: Self::emplace
 pub unsafe trait Container<T: ?Sized>: Sized {
     type Ptr: core::ops::Deref<Target = T>;
@@ -33,7 +33,7 @@ pub unsafe trait Container<T: ?Sized>: Sized {
     /// pointer to the constructed object.
     fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
     where
-        C: Constructor<Object = T>;
+        C: Construct<Object = T>;
 }
 
 /// A variant of [`Container`] used for pinned constructions.
@@ -50,7 +50,7 @@ pub unsafe trait PinContainer<T: ?Sized>: Container<T> {
     /// [`emplace`]: Container::emplace
     fn pin_emplace<C>(self, constructor: C) -> Result<Pin<Self::Ptr>, Self::Err>
     where
-        C: PinConstructor<Object = T>;
+        C: PinConstruct<Object = T>;
 }
 
 /// A pointer to objects stored in buffers.
@@ -178,7 +178,7 @@ unsafe impl<'a, T: ?Sized, const N: usize> Container<T> for &'a mut [u8; N] {
 
     fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
     where
-        C: Constructor<Object = T>,
+        C: Construct<Object = T>,
     {
         self.as_mut_slice().emplace(constructor)
     }
@@ -189,7 +189,7 @@ unsafe impl<'a, T: ?Sized, const N: usize> Container<T> for &'a mut [MaybeUninit
 
     fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
     where
-        C: Constructor<Object = T>,
+        C: Construct<Object = T>,
     {
         self.as_mut_slice().emplace(constructor)
     }
@@ -200,7 +200,7 @@ unsafe impl<'a, T: ?Sized> Container<T> for &'a mut [u8] {
 
     fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
     where
-        C: Constructor<Object = T>,
+        C: Construct<Object = T>,
     {
         let maybe_uninit: &mut [MaybeUninit<u8>] = unsafe { core::mem::transmute(self) };
         maybe_uninit.emplace(constructor)
@@ -212,7 +212,7 @@ unsafe impl<'a, T: ?Sized> Container<T> for &'a mut [MaybeUninit<u8>] {
 
     fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
     where
-        C: Constructor<Object = T>,
+        C: Construct<Object = T>,
     {
         unsafe {
             let slot = buf_emplace(self, constructor.layout())?;
@@ -250,7 +250,7 @@ mod __alloc {
 
         fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
         where
-            C: Constructor<Object = T>,
+            C: Construct<Object = T>,
         {
             self.pin_emplace(constructor)
                 .map(|b| unsafe { Pin::into_inner_unchecked(b) })
@@ -260,7 +260,7 @@ mod __alloc {
     unsafe impl<T: ?Sized> PinContainer<T> for Boxed {
         fn pin_emplace<C>(self, constructor: C) -> Result<Pin<Self::Ptr>, Self::Err>
         where
-            C: PinConstructor<Object = T>,
+            C: PinConstruct<Object = T>,
         {
             unsafe {
                 let slot = box_emlace(constructor.layout());
@@ -287,7 +287,7 @@ mod __alloc {
 
         fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
         where
-            C: Constructor<Object = T>,
+            C: Construct<Object = T>,
         {
             let maybe_uninit: &mut Vec<MaybeUninit<u8>> = unsafe { core::mem::transmute(self) };
             maybe_uninit.emplace(constructor)
@@ -299,7 +299,7 @@ mod __alloc {
 
         fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
         where
-            C: Constructor<Object = T>,
+            C: Construct<Object = T>,
         {
             unsafe {
                 let slot = vec_emplace(self, constructor.layout());

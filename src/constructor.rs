@@ -8,7 +8,7 @@ use crate::container::{Container, PinContainer};
 pub struct Dynify<T>(T);
 impl<T> Dynify<T>
 where
-    T: Constructor,
+    T: Construct,
 {
     /// Returns the layout of the object to be constructed.
     pub fn layout(&self) -> Layout {
@@ -38,7 +38,7 @@ where
     where
         C: Container<T::Object>,
     {
-        let mut fallible = FallibleConstructor::new(self.0);
+        let mut fallible = FallibleConstruct::new(self.0);
         // SAFETY: `fallible` is dropped immediately after it gets consumed.
         let handle = unsafe { fallible.handle() };
         match container.emplace(handle) {
@@ -106,7 +106,7 @@ where
 
 /// A variant of [`Dynify`] that requires pinned containers.
 pub struct PinDynify<T>(T);
-impl<T: PinConstructor> PinDynify<T> {
+impl<T: PinConstruct> PinDynify<T> {
     /// Returns the layout of the object to be constructed.
     pub fn layout(&self) -> Layout {
         self.0.layout()
@@ -135,7 +135,7 @@ impl<T: PinConstructor> PinDynify<T> {
     where
         C: PinContainer<T::Object>,
     {
-        let mut fallible = FallibleConstructor::new(self.0);
+        let mut fallible = FallibleConstruct::new(self.0);
         // SAFETY: `fallible` is dropped immediately after it gets consumed.
         let handle = unsafe { fallible.handle() };
         match container.pin_emplace(handle) {
@@ -202,15 +202,19 @@ impl<T: PinConstructor> PinDynify<T> {
 
 /// The core trait to package necessary information for object constructions.
 ///
+/// A type that implements [`Construct`] is called a *constructor*. The value to
+/// be constructed in the target memory location is called an *object*, of which
+/// type is specified as [`Object`].
+///
 /// # Examples
 ///
 /// ```rust
-/// # use dynify::{Constructor, PinConstructor, Slot};
+/// # use dynify::{Construct, PinConstruct, Slot};
 /// # use std::any::Any;
 /// # use std::alloc::Layout;
 /// # use std::ptr::NonNull;
-/// struct I32Constructor(fn() -> i32);
-/// unsafe impl PinConstructor for I32Constructor {
+/// struct I32Construct(fn() -> i32);
+/// unsafe impl PinConstruct for I32Construct {
 ///     type Object = dyn Any;
 ///     fn layout(&self) -> Layout {
 ///         Layout::new::<i32>()
@@ -219,13 +223,21 @@ impl<T: PinConstructor> PinDynify<T> {
 ///         slot.write((self.0)()) as NonNull<_>
 ///     }
 /// }
-/// unsafe impl Constructor for I32Constructor {}
+/// unsafe impl Construct for I32Construct {}
 /// ```
 ///
 /// # Safety
 ///
-/// The implementor must adhere to the documented contracts of each method.
-pub unsafe trait PinConstructor: Sized {
+/// For the implementor,
+///
+/// - It must adhere to the documented contracts of each method.
+/// - The object placed in the provided slot in [`construct`] must have the same
+///   layout as that returned from [`layout`].
+///
+/// [`Object`]: Self::Object
+/// [`construct`]: Self::construct
+/// [`layout`]: Self::layout
+pub unsafe trait PinConstruct: Sized {
     /// The type of objects to be constructed.
     type Object: ?Sized;
 
@@ -253,7 +265,7 @@ pub unsafe trait PinConstructor: Sized {
     ///   from [`layout`](Self::layout).
     /// - It must be exclusive for this construction.
     ///
-    /// Furthermore, if `Self` does not implement [`Constructor`], the caller
+    /// Furthermore, if `Self` does not implement [`Construct`], the caller
     /// must ensure the pinning requirements are upheld for the returned
     /// pointer.
     ///
@@ -267,15 +279,16 @@ pub unsafe trait PinConstructor: Sized {
     }
 }
 
-/// A marker for constructors that do not require to be pinned.
+/// A marker for constructors that do not require pinned containers.
 ///
 /// # Safety
 ///
-/// The implementor must ensure that the implementation of [`construct`] does
-/// not rely on a pinned slot.
+/// See the safety notes of [`PinConstruct`]. Additionally, the implementor must
+/// ensure that the implementation of [`construct`] does not rely on a pinned
+/// memory block.
 ///
-/// [`construct`]: PinConstructor::construct
-pub unsafe trait Constructor: PinConstructor {
+/// [`construct`]: PinConstruct::construct
+pub unsafe trait Construct: PinConstruct {
     /// Wraps the constructor with [`Dynify`] for further use.
     fn dynify(self) -> Dynify<Self> {
         Dynify(self)
@@ -290,10 +303,10 @@ impl Slot {
     /// # Safety
     ///
     /// - The returned instance may not be used outside of [`construct`].
-    /// - [`Constructor`]s will write objects directly to the address of `ptr`,
+    /// - [`Construct`]s will write objects directly to the address of `ptr`,
     ///   hence `ptr` must meet all safety requirements of [`construct`].
     ///
-    /// [`construct`]: PinConstructor::construct
+    /// [`construct`]: PinConstruct::construct
     pub unsafe fn new(ptr: NonNull<u8>) -> Self {
         Self(ptr.cast())
     }
@@ -303,7 +316,7 @@ impl Slot {
     /// # Safety
     ///
     /// The object may not have a different layout than the one returned from
-    /// [`PinConstructor::layout`].
+    /// [`PinConstruct::layout`].
     pub unsafe fn write<T>(self, object: T) -> NonNull<T> {
         let ptr = self.0.cast::<T>();
         debug_assert!(ptr.is_aligned());
@@ -313,8 +326,8 @@ impl Slot {
 }
 
 /// A utility type to reuse the inner constructor if construction fails.
-struct FallibleConstructor<T>(Option<T>);
-impl<T> FallibleConstructor<T> {
+struct FallibleConstruct<T>(Option<T>);
+impl<T> FallibleConstruct<T> {
     /// Wraps the supplied constructor and returns a new instance.
     pub fn new(constructor: T) -> Self {
         Self(Some(constructor))
@@ -343,7 +356,7 @@ impl<T> FallibleConstructor<T> {
     ///   [`forget`]ed immediately. Future access will lead to *undefined
     ///   behavior*.
     ///
-    /// [`construct`]: PinConstructor::construct
+    /// [`construct`]: PinConstruct::construct
     /// [`forget`]: core::mem::forget
     pub unsafe fn handle(&mut self) -> FallibleHandle<T> {
         debug_assert!(!self.consumed());
@@ -357,9 +370,9 @@ impl<T> FallibleConstructor<T> {
 /// valid. Otherwise, the inner value gets taken, leading to *undefined
 /// behavior* for future access.
 ///
-/// [`construct`]: Constructor::construct
+/// [`construct`]: Construct::construct
 struct FallibleHandle<'a, T>(&'a mut Option<T>);
-unsafe impl<T: PinConstructor> PinConstructor for FallibleHandle<'_, T> {
+unsafe impl<T: PinConstruct> PinConstruct for FallibleHandle<'_, T> {
     type Object = T::Object;
     fn layout(&self) -> Layout {
         unwrap_unchecked(self.0.as_ref()).layout()
@@ -368,7 +381,7 @@ unsafe impl<T: PinConstructor> PinConstructor for FallibleHandle<'_, T> {
         unwrap_unchecked(self.0.take()).construct(slot)
     }
 }
-unsafe impl<T: Constructor> Constructor for FallibleHandle<'_, T> {}
+unsafe impl<T: Construct> Construct for FallibleHandle<'_, T> {}
 
 fn unwrap_unchecked<U>(opt: Option<U>) -> U {
     match opt {

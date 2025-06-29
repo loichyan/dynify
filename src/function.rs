@@ -2,7 +2,7 @@ use core::alloc::Layout;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::constructor::{Constructor, PinConstructor, Slot};
+use crate::constructor::{Construct, PinConstruct, Slot};
 use crate::receiver::Receiver;
 
 /// A constructor for the return type of functions.
@@ -12,7 +12,7 @@ pub struct Fn<Args, Ret: ?Sized> {
     args: Args,
 }
 
-unsafe impl<Args, Ret: ?Sized> PinConstructor for Fn<Args, Ret> {
+unsafe impl<Args, Ret: ?Sized> PinConstruct for Fn<Args, Ret> {
     type Object = Ret;
     unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object> {
         (self.init)(slot, self.args)
@@ -21,7 +21,7 @@ unsafe impl<Args, Ret: ?Sized> PinConstructor for Fn<Args, Ret> {
         self.layout
     }
 }
-unsafe impl<Args, Ret: ?Sized> Constructor for Fn<Args, Ret> {}
+unsafe impl<Args, Ret: ?Sized> Construct for Fn<Args, Ret> {}
 
 impl<Args, Ret: ?Sized> From<Fn<Args, Ret>> for crate::constructor::Dynify<Fn<Args, Ret>> {
     fn from(value: Fn<Args, Ret>) -> Self {
@@ -133,7 +133,7 @@ macro_rules! doc_macro {
 }
 
 doc_macro! {
-    /// Creates [`Constructor`] from static functions.
+    /// Creates [`Construct`] from static functions.
     ///
     /// It accepts as its parameters the target function followed by all the
     /// arguments required to invoke that function, returning a constructor for
