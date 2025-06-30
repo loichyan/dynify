@@ -42,6 +42,8 @@ pub async fn test_example() {
     use std::future::Future;
     use std::mem::MaybeUninit;
 
+    use crate::Dynify;
+
     pub trait Async {
         type Item;
         const NAME: &'static str;
@@ -128,17 +130,12 @@ pub async fn test_example() {
         println!(">>> {name}, layout={:?}", imp.foo(arg.clone()).layout());
         let a = imp
             .foo(arg.clone())
-            .dynify()
             .try_init(&mut stack)
             .inspect(|_| println!(">>> stack allocated {name}"))
             .inspect_err(|_| println!(">>> heap allocated {name}"))
             .unwrap_or_else(|(c, _)| c.init(&mut heap))
             .await;
-        let b = imp
-            .foo(arg.clone())
-            .dynify()
-            .init2(&mut stack, &mut heap)
-            .await;
+        let b = imp.foo(arg.clone()).init2(&mut stack, &mut heap).await;
         assert_eq!(a, b);
         a
     }

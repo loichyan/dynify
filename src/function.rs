@@ -24,6 +24,34 @@ unsafe impl<Args, Ret: ?Sized> PinConstruct for Fn<Args, Ret> {
 unsafe impl<Args, Ret: ?Sized> Construct for Fn<Args, Ret> {}
 
 /// A helper struct to display friendly errors.
+///
+/// If a closure is used in [`from_fn`], the compiler emits errors like below:
+///
+/// Code:
+///
+/// ```rust,compile_fail
+/// let var = 123;
+/// dynify::from_fn!(move || var);
+/// ```
+///
+/// Output:
+///
+/// ```text
+/// note: expected fn pointer, found closure
+///   --> tests/test.rs:3:5
+///    |
+/// 3  |     dynify::from_fn!(move || var);
+///    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+///    = note: expected fn pointer `fn(dynify::function::MustNotBeClosure) -> {closure@tests/test.rs:3:22: 3:29}`
+///                  found closure `{closure@src/function.rs:216:17: 216:18}`
+/// note: closures can only be coerced to `fn` types if they do not capture any variables
+///   --> tests/test.rs:3:30
+///    |
+/// 3  |     dynify::from_fn!(move || var);
+///    |                              ^^^ `var` captured here
+/// ```
+///
+/// [`from_fn`]: crate::from_fn
 pub struct MustNotBeClosure;
 
 /// Creates a constructor for the return type of the specified function.
@@ -121,12 +149,12 @@ macro_rules! impl_function {
 impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P -> R); // 16 arguments
 
 doc_macro! {
-    /// Creates [`Construct`] from static functions.
+    /// Creates a constructor for static functions.
     ///
     /// It accepts as its parameters the target function followed by all the
     /// arguments required to invoke that function, returning a constructor for
     /// the return type of the function. The type of returned constructors can
-    /// be obtained with [`Fn`](crate::Fn).
+    /// be obtained with [`Fn`].
     ///
     /// The provided function must be a static item which can be resolved at
     /// compile-time; therefore, closures are not supported. For methods, the
@@ -142,6 +170,8 @@ doc_macro! {
     /// let path = "/tmp/file";
     /// let _: Fn!(_ => dyn Future<Output = String>) = from_fn!(read_string, path);
     /// ```
+    ///
+    /// [`Fn`]: crate::Fn
     #[macro_export]
     macro from_fn {
         ($f:expr, $self:ident $(,$args:ident)*) => {};
@@ -219,6 +249,8 @@ doc_macro! {
     ///     from_fn!(fetch_something, uri)
     /// }
     /// ```
+    ///
+    /// [`from_fn`]: crate::from_fn
     #[macro_export]
     macro Fn {
         (_ => $ret:ty) => {};

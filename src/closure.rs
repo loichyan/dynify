@@ -43,12 +43,12 @@ where
 /// # Example
 ///
 /// ```rust
-/// # use dynify::{Construct, from_closure};
+/// # use dynify::{PinDynify, from_closure};
 /// # use std::future::Future;
 /// # pollster::block_on(async {
 /// let fut = async { String::from("(o.O)") };
 /// let kmoji = from_closure(|slot| slot.write(fut) as &mut dyn Future<Output = String>);
-/// assert_eq!(kmoji.dynify().pin_boxed().await, "(o.O)");
+/// assert_eq!(kmoji.pin_boxed().await, "(o.O)");
 /// # });
 /// ```
 ///

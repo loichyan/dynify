@@ -4,208 +4,6 @@ use core::ptr::NonNull;
 
 use crate::container::{Emplace, PinEmplace};
 
-/// The main entrypoint used to perform in-place object constructions.
-pub struct Dynify<T>(T);
-impl<T> Dynify<T>
-where
-    T: Construct,
-{
-    /// Returns the layout of the object to be constructed.
-    pub fn layout(&self) -> Layout {
-        self.0.layout()
-    }
-
-    /// Constructs the object in the supplied container.
-    ///
-    /// For non-panicking variant, use [`try_init`](Self::try_init).
-    ///
-    /// # Panic
-    ///
-    /// It panics if `container` fails to construct the object.
-    pub fn init<C>(self, container: C) -> C::Ptr
-    where
-        C: Emplace<T::Object>,
-    {
-        self.try_init(container)
-            .unwrap_or_else(|_| panic!("failed to initialize"))
-    }
-
-    /// Constructs the object in the supplied container.
-    ///
-    /// If the construction succeeds, it returns the pointer to the object.
-    /// Otherwise, `self` is returned along with the encountered error.
-    pub fn try_init<C>(self, container: C) -> Result<C::Ptr, (Self, C::Err)>
-    where
-        C: Emplace<T::Object>,
-    {
-        let mut fallible = FallibleConstruct::new(self.0);
-        // SAFETY: `fallible` is dropped immediately after it gets consumed.
-        let handle = unsafe { fallible.handle() };
-        match container.emplace(handle) {
-            Ok(p) => {
-                debug_assert!(fallible.consumed());
-                core::mem::forget(fallible);
-                Ok(p)
-            },
-            Err(e) => Err((Self(fallible.into_inner()), e)),
-        }
-    }
-
-    /// Constructs the object in two containers in turn.
-    ///
-    /// For non-panicking variant, use [`try_init2`](Self::try_init2).
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use dynify::{Construct, Dynify, Fn, from_fn};
-    /// # use std::future::Future;
-    /// # pollster::block_on(async {
-    /// let mut stack = [0u8; 32];
-    /// let mut heap = vec![0u8; 0];
-    ///
-    /// let constructor: Fn!(=> dyn Future<Output = i32>) = from_fn!(|| async { 777 });
-    /// let ret = constructor.dynify().init2(&mut stack, &mut heap).await;
-    /// assert_eq!(ret, 777);
-    /// # });
-    /// ```
-    ///
-    /// # Panic
-    ///
-    /// It panics if both containers fail to construct the object.
-    pub fn init2<P, C1, C2>(self, container1: C1, container2: C2) -> P
-    where
-        C1: Emplace<T::Object, Ptr = P>,
-        C2: Emplace<T::Object, Ptr = P>,
-    {
-        self.try_init2(container1, container2)
-            .unwrap_or_else(|_| panic!("failed to initialize"))
-    }
-
-    /// Constructs the object in two containers in turn.
-    ///
-    /// It returns the object pointer if either container succeeds. Otherwise,
-    /// it forwards the error returned from `container2`.
-    pub fn try_init2<P, C1, C2>(self, container1: C1, container2: C2) -> Result<P, (Self, C2::Err)>
-    where
-        C1: Emplace<T::Object, Ptr = P>,
-        C2: Emplace<T::Object, Ptr = P>,
-    {
-        self.try_init(container1)
-            .or_else(|(this, _)| this.try_init(container2))
-    }
-
-    /// Constructs the object in [`Box`](alloc::boxed::Box).
-    ///
-    /// This function never fails as long as there is enough free memory.
-    #[cfg(feature = "alloc")]
-    pub fn boxed(self) -> alloc::boxed::Box<T::Object> {
-        self.init(crate::container::Boxed)
-    }
-
-    /// Constructs the object in pinned [`Box`](alloc::boxed::Box).
-    #[cfg(feature = "alloc")]
-    pub fn pin_boxed(self) -> Pin<alloc::boxed::Box<T::Object>> {
-        alloc::boxed::Box::into_pin(self.init(crate::container::Boxed))
-    }
-}
-
-/// A variant of [`Dynify`] that requires pinned containers.
-pub struct PinDynify<T>(T);
-impl<T: PinConstruct> PinDynify<T> {
-    /// Returns the layout of the object to be constructed.
-    pub fn layout(&self) -> Layout {
-        self.0.layout()
-    }
-
-    /// Constructs the object in the supplied container.
-    ///
-    /// For non-panicking variant, use [`try_init`](Self::try_init).
-    ///
-    /// # Panic
-    ///
-    /// It panics if `container` fails to construct the object.
-    pub fn init<C>(self, container: C) -> Pin<C::Ptr>
-    where
-        C: PinEmplace<T::Object>,
-    {
-        self.try_init(container)
-            .unwrap_or_else(|_| panic!("failed to initialize"))
-    }
-
-    /// Constructs the object in the supplied container.
-    ///
-    /// If the construction succeeds, it returns the pointer to the object.
-    /// Otherwise, `self` is returned along with the encountered error.
-    pub fn try_init<C>(self, container: C) -> Result<Pin<C::Ptr>, (Self, C::Err)>
-    where
-        C: PinEmplace<T::Object>,
-    {
-        let mut fallible = FallibleConstruct::new(self.0);
-        // SAFETY: `fallible` is dropped immediately after it gets consumed.
-        let handle = unsafe { fallible.handle() };
-        match container.pin_emplace(handle) {
-            Ok(p) => {
-                debug_assert!(fallible.consumed());
-                core::mem::forget(fallible);
-                Ok(p)
-            },
-            Err(e) => Err((Self(fallible.into_inner()), e)),
-        }
-    }
-
-    /// Constructs the object in two containers in turn.
-    ///
-    /// For non-panicking variant, use [`try_init2`](Self::try_init2).
-    ///
-    /// # Panic
-    ///
-    /// It panics if both containers fail to construct the object.
-    pub fn init2<P, C1, C2>(self, container1: C1, container2: C2) -> Pin<P>
-    where
-        C1: PinEmplace<T::Object, Ptr = P>,
-        C2: PinEmplace<T::Object, Ptr = P>,
-    {
-        self.try_init2(container1, container2)
-            .unwrap_or_else(|_| panic!("failed to initialize"))
-    }
-
-    /// Constructs the object in two containers in turn.
-    ///
-    /// It returns the object pointer if either container succeeds. Otherwise,
-    /// it forwards the error returned from `container2`.
-    pub fn try_init2<P, C1, C2>(
-        self,
-        container1: C1,
-        container2: C2,
-    ) -> Result<Pin<P>, (Self, C2::Err)>
-    where
-        C1: PinEmplace<T::Object, Ptr = P>,
-        C2: PinEmplace<T::Object, Ptr = P>,
-    {
-        self.try_init(container1)
-            .or_else(|(this, _)| this.try_init(container2))
-    }
-
-    /// Constructs the object in [`Box`](alloc::boxed::Box).
-    ///
-    /// This function never fails as long as there is enough free memory.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use dynify::{Fn, PinConstruct, PinDynify, from_fn};
-    /// # use std::any::Any;
-    /// # use std::pin::Pin;
-    /// let constructor: Fn!(=> dyn Any) = from_fn!(|| 123);
-    /// let _: Pin<Box<dyn Any>> = constructor.pin_dynify().boxed();
-    /// ```
-    #[cfg(feature = "alloc")]
-    pub fn boxed(self) -> Pin<alloc::boxed::Box<T::Object>> {
-        self.init(crate::container::Boxed)
-    }
-}
-
 /// The core trait to package necessary information for object constructions.
 ///
 /// A type that implements [`Construct`] is called a *constructor*. The value to
@@ -281,12 +79,6 @@ pub unsafe trait PinConstruct: Sized {
     ///
     /// [`Object`]: Self::Object
     unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object>;
-
-    /// Wraps the constructor with [`PinDynify`] to ensure it is constructed in
-    /// pinned containers.
-    fn pin_dynify(self) -> PinDynify<Self> {
-        PinDynify(self)
-    }
 }
 
 /// A marker for constructors that do not require pinned containers.
@@ -298,12 +90,7 @@ pub unsafe trait PinConstruct: Sized {
 /// memory block.
 ///
 /// [`construct`]: PinConstruct::construct
-pub unsafe trait Construct: PinConstruct {
-    /// Wraps the constructor with [`Dynify`] for further use.
-    fn dynify(self) -> Dynify<Self> {
-        Dynify(self)
-    }
-}
+pub unsafe trait Construct: PinConstruct {}
 
 unsafe impl<T: PinConstruct> PinConstruct for &'_ mut Option<T> {
     type Object = T::Object;
@@ -355,9 +142,192 @@ impl Slot {
     }
 }
 
+/// The main interface used to perform in-place object constructions.
+pub trait Dynify: Construct {
+    /// Constructs the object in the supplied container.
+    ///
+    /// For non-panicking variant, use [`try_init`](Self::try_init).
+    ///
+    /// # Panic
+    ///
+    /// It panics if `container` fails to construct the object.
+    fn init<C>(self, container: C) -> C::Ptr
+    where
+        C: Emplace<Self::Object>,
+    {
+        self.try_init(container)
+            .unwrap_or_else(|_| panic!("failed to initialize"))
+    }
+
+    /// Constructs the object in the supplied container.
+    ///
+    /// If the construction succeeds, it returns the pointer to the object.
+    /// Otherwise, `self` is returned along with the encountered error.
+    fn try_init<C>(self, container: C) -> Result<C::Ptr, (Self, C::Err)>
+    where
+        C: Emplace<Self::Object>,
+    {
+        let mut fallible = FallibleConstructor::new(self);
+        // SAFETY: `fallible` is dropped immediately after it gets consumed.
+        let handle = unsafe { fallible.handle() };
+        match container.emplace(handle) {
+            Ok(p) => {
+                debug_assert!(fallible.consumed());
+                core::mem::forget(fallible);
+                Ok(p)
+            },
+            Err(e) => Err((fallible.into_inner(), e)),
+        }
+    }
+
+    /// Constructs the object in two containers in turn.
+    ///
+    /// For non-panicking variant, use [`try_init2`](Self::try_init2).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use dynify::{Dynify, Fn, from_fn};
+    /// # use std::future::Future;
+    /// # pollster::block_on(async {
+    /// let mut stack = [0u8; 32];
+    /// let mut heap = vec![0u8; 0];
+    ///
+    /// let constructor: Fn!(=> dyn Future<Output = i32>) = from_fn!(|| async { 777 });
+    /// let ret = constructor.init2(&mut stack, &mut heap).await;
+    /// assert_eq!(ret, 777);
+    /// # });
+    /// ```
+    ///
+    /// # Panic
+    ///
+    /// It panics if both containers fail to construct the object.
+    fn init2<P, C1, C2>(self, container1: C1, container2: C2) -> P
+    where
+        C1: Emplace<Self::Object, Ptr = P>,
+        C2: Emplace<Self::Object, Ptr = P>,
+    {
+        self.try_init2(container1, container2)
+            .unwrap_or_else(|_| panic!("failed to initialize"))
+    }
+
+    /// Constructs the object in two containers in turn.
+    ///
+    /// It returns the object pointer if either container succeeds. Otherwise,
+    /// it forwards the error returned from `container2`.
+    fn try_init2<P, C1, C2>(self, container1: C1, container2: C2) -> Result<P, (Self, C2::Err)>
+    where
+        C1: Emplace<Self::Object, Ptr = P>,
+        C2: Emplace<Self::Object, Ptr = P>,
+    {
+        self.try_init(container1)
+            .or_else(|(this, _)| this.try_init(container2))
+    }
+
+    /// Constructs the object in [`Box`](alloc::boxed::Box).
+    ///
+    /// This function never fails as long as there is enough free memory.
+    #[cfg(feature = "alloc")]
+    fn boxed(self) -> alloc::boxed::Box<Self::Object> {
+        self.init(crate::container::Boxed)
+    }
+}
+impl<T: Construct> Dynify for T {}
+
+/// A variant of [`Dynify`] that requires pinned containers.
+pub trait PinDynify: PinConstruct {
+    /// Constructs the object in the supplied container.
+    ///
+    /// For non-panicking variant, use [`try_pin_init`](Self::try_pin_init).
+    ///
+    /// # Panic
+    ///
+    /// It panics if `container` fails to construct the object.
+    fn pin_init<C>(self, container: C) -> Pin<C::Ptr>
+    where
+        C: PinEmplace<Self::Object>,
+    {
+        self.try_pin_init(container)
+            .unwrap_or_else(|_| panic!("failed to initialize"))
+    }
+
+    /// Constructs the object in the supplied container.
+    ///
+    /// If the construction succeeds, it returns the pointer to the object.
+    /// Otherwise, `self` is returned along with the encountered error.
+    fn try_pin_init<C>(self, container: C) -> Result<Pin<C::Ptr>, (Self, C::Err)>
+    where
+        C: PinEmplace<Self::Object>,
+    {
+        let mut fallible = FallibleConstructor::new(self);
+        // SAFETY: `fallible` is dropped immediately after it gets consumed.
+        let handle = unsafe { fallible.handle() };
+        match container.pin_emplace(handle) {
+            Ok(p) => {
+                debug_assert!(fallible.consumed());
+                core::mem::forget(fallible);
+                Ok(p)
+            },
+            Err(e) => Err((fallible.into_inner(), e)),
+        }
+    }
+
+    /// Constructs the object in two containers in turn.
+    ///
+    /// For non-panicking variant, use [`try_pin_init2`](Self::try_pin_init2).
+    ///
+    /// # Panic
+    ///
+    /// It panics if both containers fail to construct the object.
+    fn pin_init2<P, C1, C2>(self, container1: C1, container2: C2) -> Pin<P>
+    where
+        C1: PinEmplace<Self::Object, Ptr = P>,
+        C2: PinEmplace<Self::Object, Ptr = P>,
+    {
+        self.try_pin_init2(container1, container2)
+            .unwrap_or_else(|_| panic!("failed to initialize"))
+    }
+
+    /// Constructs the object in two containers in turn.
+    ///
+    /// It returns the object pointer if either container succeeds. Otherwise,
+    /// it forwards the error returned from `container2`.
+    fn try_pin_init2<P, C1, C2>(
+        self,
+        container1: C1,
+        container2: C2,
+    ) -> Result<Pin<P>, (Self, C2::Err)>
+    where
+        C1: PinEmplace<Self::Object, Ptr = P>,
+        C2: PinEmplace<Self::Object, Ptr = P>,
+    {
+        self.try_pin_init(container1)
+            .or_else(|(this, _)| this.try_pin_init(container2))
+    }
+
+    /// Constructs the object in [`Box`](alloc::boxed::Box).
+    ///
+    /// This function never fails as long as there is enough free memory.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use dynify::{Fn, PinDynify, from_fn};
+    /// # use std::any::Any;
+    /// # use std::pin::Pin;
+    /// let constructor: Fn!(=> dyn Any) = from_fn!(|| 123);
+    /// let _: Pin<Box<dyn Any>> = constructor.pin_boxed();
+    /// ```
+    #[cfg(feature = "alloc")]
+    fn pin_boxed(self) -> Pin<alloc::boxed::Box<Self::Object>> {
+        self.pin_init(crate::container::Boxed)
+    }
+}
+impl<T: PinConstruct> PinDynify for T {}
+
 /// A utility type to reuse the inner constructor if construction fails.
-struct FallibleConstruct<T>(Option<T>);
-impl<T> FallibleConstruct<T> {
+struct FallibleConstructor<T>(Option<T>);
+impl<T> FallibleConstructor<T> {
     /// Wraps the supplied constructor and returns a new instance.
     pub fn new(constructor: T) -> Self {
         Self(Some(constructor))
@@ -400,7 +370,7 @@ impl<T> FallibleConstruct<T> {
 /// valid. Otherwise, the inner value gets taken, leading to *undefined
 /// behavior* for future access.
 ///
-/// [`construct`]: Construct::construct
+/// [`construct`]: PinConstruct::construct
 struct FallibleHandle<'a, T>(&'a mut Option<T>);
 unsafe impl<T: PinConstruct> PinConstruct for FallibleHandle<'_, T> {
     type Object = T::Object;
