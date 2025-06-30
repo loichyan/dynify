@@ -23,17 +23,6 @@ unsafe impl<Args, Ret: ?Sized> PinConstruct for Fn<Args, Ret> {
 }
 unsafe impl<Args, Ret: ?Sized> Construct for Fn<Args, Ret> {}
 
-impl<Args, Ret: ?Sized> From<Fn<Args, Ret>> for crate::constructor::Dynify<Fn<Args, Ret>> {
-    fn from(value: Fn<Args, Ret>) -> Self {
-        value.dynify()
-    }
-}
-impl<Args, Ret: ?Sized> From<Fn<Args, Ret>> for crate::constructor::PinDynify<Fn<Args, Ret>> {
-    fn from(value: Fn<Args, Ret>) -> Self {
-        value.pin_dynify()
-    }
-}
-
 /// A helper struct to display friendly errors.
 pub struct MustNotBeClosure;
 
@@ -167,7 +156,7 @@ macro_rules! __from_fn {
         // function into the supplied slot. Therefore, it doesn't matter whether
         // the constructor is wrapped in `Dynify` or `PinDynify`.
         unsafe {
-            ::core::convert::Into::into($crate::r#priv::from_method(
+            $crate::r#priv::from_method(
                 |_| $f,
                 ($crate::r#priv::Receiver::seal($self), $($args,)*),
                 |slot, (this, $($args,)*)| {
@@ -176,13 +165,13 @@ macro_rules! __from_fn {
                     let ptr = slot.write(ret);
                     ptr as ::core::ptr::NonNull<_>
                 },
-            ))
+            )
         }
     };
     ([$($_:ident)?] $f:expr, $($args:ident,)*) => {
         // SAFETY: See the comment above.
         unsafe {
-            ::core::convert::Into::into($crate::r#priv::from_bare_fn(
+            $crate::r#priv::from_bare_fn(
                 |_| $f,
                 ($($args,)*),
                 |slot, ($($args,)*)| {
@@ -190,7 +179,7 @@ macro_rules! __from_fn {
                     let ptr = slot.write(ret);
                     ptr as ::core::ptr::NonNull<_>
                 },
-            ))
+            )
         }
     };
 }

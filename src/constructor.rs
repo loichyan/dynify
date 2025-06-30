@@ -58,14 +58,14 @@ where
     /// # Examples
     ///
     /// ```rust
-    /// # use dynify::{Dynify, Fn, from_fn};
+    /// # use dynify::{Construct, Dynify, Fn, from_fn};
     /// # use std::future::Future;
     /// # pollster::block_on(async {
     /// let mut stack = [0u8; 32];
     /// let mut heap = vec![0u8; 0];
     ///
-    /// let constructor: Dynify<Fn!(=> dyn Future<Output = i32>)> = from_fn!(|| async { 777 });
-    /// let ret = constructor.init2(&mut stack, &mut heap).await;
+    /// let constructor: Fn!(=> dyn Future<Output = i32>) = from_fn!(|| async { 777 });
+    /// let ret = constructor.dynify().init2(&mut stack, &mut heap).await;
     /// assert_eq!(ret, 777);
     /// # });
     /// ```
@@ -194,11 +194,11 @@ impl<T: PinConstruct> PinDynify<T> {
     /// # Examples
     ///
     /// ```rust
-    /// # use dynify::{Fn, PinDynify, from_fn};
+    /// # use dynify::{Fn, PinConstruct, PinDynify, from_fn};
     /// # use std::any::Any;
     /// # use std::pin::Pin;
-    /// let constructor: PinDynify<Fn!(=> dyn Any)> = from_fn!(|| 123);
-    /// let _: Pin<Box<dyn Any>> = constructor.boxed();
+    /// let constructor: Fn!(=> dyn Any) = from_fn!(|| 123);
+    /// let _: Pin<Box<dyn Any>> = constructor.pin_dynify().boxed();
     /// ```
     #[cfg(feature = "alloc")]
     pub fn boxed(self) -> Pin<alloc::boxed::Box<T::Object>> {
