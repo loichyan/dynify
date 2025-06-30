@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `stack` as mutable more than once at a time
+  --> tests/ui/buffered_mut_borrow_twice_fail.rs:10:42
+   |
+9  |     let val1: Buffered<i32> = init1.init(&mut stack);
+   |                                          ---------- first mutable borrow occurs here
+10 |     let val2: Buffered<i32> = init2.init(&mut stack); // fails
+   |                                          ^^^^^^^^^^ second mutable borrow occurs here
+11 |     drop((val1, val2));
+   |           ---- first borrow later used here

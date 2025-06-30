@@ -1,0 +1,39 @@
+error[E0308]: arguments to this function are incorrect
+ --> tests/ui/from_fn_with_closure_fail.rs:3:5
+  |
+3 |     dynify::from_fn!(move || var);
+  |     ^^^^^^^^^^^^^^^^^-------^^^^^
+  |                      |
+  |                      the expected closure
+  |                      the found closure
+  |
+note: expected fn pointer, found closure
+ --> tests/ui/from_fn_with_closure_fail.rs:3:5
+  |
+3 |     dynify::from_fn!(move || var);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = note: expected fn pointer `fn(dynify::function::MustNotBeClosure) -> {closure@$DIR/tests/ui/from_fn_with_closure_fail.rs:3:22: 3:29}`
+                found closure `{closure@$DIR/src/function.rs:182:17: 182:18}`
+note: closures can only be coerced to `fn` types if they do not capture any variables
+ --> tests/ui/from_fn_with_closure_fail.rs:3:30
+  |
+3 |     dynify::from_fn!(move || var);
+  |                              ^^^ `var` captured here
+note: expected fn pointer, found closure
+ --> tests/ui/from_fn_with_closure_fail.rs:3:5
+  |
+3 |     dynify::from_fn!(move || var);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = note: expected fn pointer `unsafe fn(Slot, ()) -> NonNull<_>`
+                found closure `{closure@$DIR/src/function.rs:184:17: 184:37}`
+note: closures can only be coerced to `fn` types if they do not capture any variables
+ --> tests/ui/from_fn_with_closure_fail.rs:3:30
+  |
+3 |     dynify::from_fn!(move || var);
+  |                              ^^^ `var` captured here
+note: function defined here
+ --> src/function.rs
+  |
+  | pub unsafe fn from_bare_fn<F, Args, Ret>(
+  |               ^^^^^^^^^^^^
+  = note: this error originates in the macro `$crate::__from_fn` which comes from the expansion of the macro `dynify::from_fn` (in Nightly builds, run with -Z macro-backtrace for more info)

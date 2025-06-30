@@ -25,33 +25,7 @@ unsafe impl<Args, Ret: ?Sized> Construct for Fn<Args, Ret> {}
 
 /// A helper struct to display friendly errors.
 ///
-/// If a closure is used in [`from_fn`], the compiler emits errors like below:
-///
-/// Code:
-///
-/// ```rust,compile_fail
-/// let var = 123;
-/// dynify::from_fn!(move || var);
-/// ```
-///
-/// Output:
-///
-/// ```text
-/// note: expected fn pointer, found closure
-///   --> tests/test.rs:3:5
-///    |
-/// 3  |     dynify::from_fn!(move || var);
-///    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-///    = note: expected fn pointer `fn(dynify::function::MustNotBeClosure) -> {closure@tests/test.rs:3:22: 3:29}`
-///                  found closure `{closure@src/function.rs:216:17: 216:18}`
-/// note: closures can only be coerced to `fn` types if they do not capture any variables
-///   --> tests/test.rs:3:30
-///    |
-/// 3  |     dynify::from_fn!(move || var);
-///    |                              ^^^ `var` captured here
-/// ```
-///
-/// [`from_fn`]: crate::from_fn
+/// For the emitted errors, see `tests/ui/from_fn_with_closure_fail.stderr`.
 pub struct MustNotBeClosure;
 
 /// Creates a constructor for the return type of the specified function.

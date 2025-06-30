@@ -1,0 +1,7 @@
+error[E0605]: non-primitive cast: `NonNull<i32>` as `NonNull<u32>`
+ --> tests/ui/from_fn_with_wrong_type_fail.rs:2:34
+  |
+2 |     let _: dynify::Fn!(=> u32) = dynify::from_fn!(|| 123i32);
+  |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^ an `as` expression can only be used to convert between primitive types or to coerce to a specific trait object
+  |
+  = note: this error originates in the macro `$crate::__from_fn` which comes from the expansion of the macro `dynify::from_fn` (in Nightly builds, run with -Z macro-backtrace for more info)
