@@ -60,7 +60,8 @@ where
 /// during the [`construct`] method of the returned instance.
 ///
 /// [`construct`]: PinConstruct::construct
-pub const fn from_closure<T, U, F>(f: F) -> Closure<T, F>
+#[inline(always)]
+pub fn from_closure<T, U, F>(f: F) -> Closure<T, F>
 where
     U: ?Sized,
     F: FnOnce(&mut MaybeUninit<T>) -> &mut U,

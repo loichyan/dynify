@@ -36,7 +36,8 @@ pub struct MustNotBeClosure;
 ///
 /// `init` may not write data to the supplied slot of different layouts than the
 /// return type of `F`.
-pub const unsafe fn from_bare_fn<F, Args, Ret>(
+#[inline(always)]
+pub unsafe fn from_bare_fn<F, Args, Ret>(
     _: fn(MustNotBeClosure) -> F,
     args: Args,
     init: unsafe fn(Slot, Args) -> NonNull<Ret>,
@@ -59,17 +60,25 @@ where
 /// # Safety
 ///
 /// See [`from_bare_fn`].
-pub const unsafe fn from_method<A, F, Args, Ret>(
+#[inline(always)]
+pub unsafe fn from_method<F, Args, Ret>(
     _: fn(MustNotBeClosure) -> F,
     args: Args,
-    init: unsafe fn(Slot, Args) -> NonNull<Ret>,
-) -> Fn<Args, Ret>
+    init: unsafe fn(Slot, F::SealedArgs) -> NonNull<Ret>,
+) -> Fn<F::SealedArgs, Ret>
 where
-    F: Function<A>,
-    Method<A, F::Ret>: Function<Args>,
+    F: Method<Args>,
     Ret: ?Sized,
 {
-    from_bare_fn(|_| Method::<A, F::Ret>(PhantomData), args, init)
+    pub struct MethodAsBareFn<Args, F>(PhantomData<(fn(Args), F)>);
+    impl<Args, F> Function<F::SealedArgs> for MethodAsBareFn<Args, F>
+    where
+        F: Method<Args>,
+    {
+        type Ret = F::Ret;
+    }
+    let args = F::seal_args(args);
+    from_bare_fn(|_| MethodAsBareFn::<Args, F>(PhantomData), args, init)
 }
 
 /// A blanked trait implemented for arbitrary functions.
@@ -77,44 +86,38 @@ pub trait Function<Args> {
     type Ret;
 }
 /// Wraps a function with its receiver type sealed.
-pub struct Method<Args, Ret>(PhantomData<fn(Args) -> Ret>);
-impl<Fn, R> Function<()> for Fn
-where
-    Fn: FnOnce() -> R,
-{
-    type Ret = R;
+pub trait Method<Args>: Function<Args> {
+    type SealedArgs;
+    fn seal_args(args: Args) -> Self::SealedArgs;
 }
 macro_rules! impl_function {
-    ($a:ident $(,$i:ident)* -> $r:ident) => {
-        impl<Fn, $a, $($i,)* $r> Function<($a, $($i,)*)> for Fn
-        where
-            Fn: FnOnce($a, $($i,)*) -> $r,
-        {
-            type Ret = $r;
-        }
-        impl<$a, $($i,)* $r> Function<(<$a as Receiver>::Sealed, $($i,)*)> for Method<($a, $($i,)*), $r>
-        where
-            $a: Receiver,
-        {
-            type Ret = $r;
+    (-> $R:ident) => {
+        impl<Fn: FnOnce() -> $R, $R> Function<()> for Fn {
+            type Ret = $R;
         }
     };
+    ($A:ident $(,$Args:ident)* -> $R:ident) => {
+        impl<Fn, $A, $($Args,)* $R> Function<($A, $($Args,)*)> for Fn
+        where
+            Fn: FnOnce($A, $($Args,)*) -> $R,
+        {
+            type Ret = $R;
+        }
+        impl<Fn, $A, $($Args,)* $R> Method<($A, $($Args,)*)> for Fn
+        where
+            $A: Receiver,
+            Fn: FnOnce($A, $($Args,)*) -> $R,
+        {
+            type SealedArgs = (<$A as Receiver>::Sealed, $($Args,)*);
+            #[allow(non_snake_case)]
+            #[inline(always)]
+            fn seal_args(($A, $($Args,)*): ($A, $($Args,)*)) -> Self::SealedArgs {
+                (Receiver::seal($A), $($Args,)*)
+            }
+        }
+        impl_function!($($Args),* -> $R);
+    };
 }
-impl_function!(A                                              -> R);
-impl_function!(A, B                                           -> R);
-impl_function!(A, B, C                                        -> R);
-impl_function!(A, B, C, D                                     -> R);
-impl_function!(A, B, C, D, E                                  -> R);
-impl_function!(A, B, C, D, E, F                               -> R);
-impl_function!(A, B, C, D, E, F, G                            -> R);
-impl_function!(A, B, C, D, E, F, G, H                         -> R);
-impl_function!(A, B, C, D, E, F, G, H, I                      -> R);
-impl_function!(A, B, C, D, E, F, G, H, I, J                   -> R);
-impl_function!(A, B, C, D, E, F, G, H, I, J, K                -> R);
-impl_function!(A, B, C, D, E, F, G, H, I, J, K, L             -> R);
-impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M          -> R);
-impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M, N       -> R);
-impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O    -> R);
 impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P -> R); // 16 arguments
 
 doc_macro! {
@@ -158,7 +161,7 @@ macro_rules! __from_fn {
         unsafe {
             $crate::r#priv::from_method(
                 |_| $f,
-                ($crate::r#priv::Receiver::seal($self), $($args,)*),
+                ($self, $($args,)*),
                 |slot, (this, $($args,)*)| {
                     let this = $crate::r#priv::Receiver::unseal(this);
                     let ret = ($f)(this, $($args,)*);
