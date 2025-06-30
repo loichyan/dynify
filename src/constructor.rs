@@ -1,4 +1,5 @@
 use core::alloc::Layout;
+use core::fmt;
 use core::pin::Pin;
 use core::ptr::NonNull;
 
@@ -139,6 +140,12 @@ impl Slot {
     /// Consumes this instance, returning a raw pointer to the memory block.
     pub fn into_raw(self) -> NonNull<u8> {
         self.0.cast()
+    }
+}
+
+impl fmt::Debug for Slot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 

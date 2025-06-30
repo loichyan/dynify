@@ -176,6 +176,12 @@ impl<T: ?Sized> DerefMut for Buffered<'_, T> {
     }
 }
 
+impl<T: ?Sized + fmt::Debug> fmt::Debug for Buffered<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        T::fmt(self, f)
+    }
+}
+
 impl<T> core::future::Future for Buffered<'_, T>
 where
     T: ?Sized + core::future::Future,
@@ -273,6 +279,7 @@ mod __alloc {
     use super::*;
 
     /// A unit type to perform constructions in [`Box`].
+    #[derive(Debug)]
     pub struct Boxed;
     // Normal box
     unsafe impl<T: ?Sized> Emplace<T> for Boxed {
