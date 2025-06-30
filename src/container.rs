@@ -87,7 +87,7 @@ pub unsafe trait PinEmplace<T: ?Sized>: Emplace<T> {
 /// pinned reference to `T` in safe Rust, as illustrated below:
 ///
 /// ```rust
-/// # use dynify::{Buffered, Dynify, Fn, from_fn};
+/// # use dynify::{from_fn, Buffered, Dynify, Fn};
 /// # use std::future::Future;
 /// # use std::pin::Pin;
 /// # pollster::block_on(async {

@@ -14,8 +14,8 @@ use crate::container::{Emplace, PinEmplace};
 ///
 /// ```rust
 /// # use dynify::{Construct, PinConstruct, Slot};
-/// # use std::any::Any;
 /// # use std::alloc::Layout;
+/// # use std::any::Any;
 /// # use std::ptr::NonNull;
 /// struct I32Construct(fn() -> i32);
 /// unsafe impl PinConstruct for I32Construct {
@@ -187,7 +187,7 @@ pub trait Dynify: Construct {
     /// # Examples
     ///
     /// ```rust
-    /// # use dynify::{Dynify, Fn, from_fn};
+    /// # use dynify::{from_fn, Dynify, Fn};
     /// # use std::future::Future;
     /// # pollster::block_on(async {
     /// let mut stack = [0u8; 32];
@@ -312,7 +312,7 @@ pub trait PinDynify: PinConstruct {
     /// # Examples
     ///
     /// ```rust
-    /// # use dynify::{Fn, PinDynify, from_fn};
+    /// # use dynify::{from_fn, Fn, PinDynify};
     /// # use std::any::Any;
     /// # use std::pin::Pin;
     /// let constructor: Fn!(=> dyn Any) = from_fn!(|| 123);

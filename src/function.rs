@@ -164,7 +164,7 @@ doc_macro! {
     /// # Example
     ///
     /// ```rust
-    /// # use dynify::{Fn, from_fn};
+    /// # use dynify::{from_fn, Fn};
     /// # use std::future::Future;
     /// async fn read_string(path: &str) -> String { String::new() }
     /// let path = "/tmp/file";
@@ -240,7 +240,7 @@ doc_macro! {
     /// # Example
     ///
     /// ```rust
-    /// # use dynify::{Fn, from_fn};
+    /// # use dynify::{from_fn, Fn};
     /// # use std::future::Future;
     /// async fn fetch_something(uri: &str) -> String {
     ///     String::from("** mysterious text **")

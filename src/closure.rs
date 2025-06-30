@@ -43,7 +43,7 @@ where
 /// # Example
 ///
 /// ```rust
-/// # use dynify::{PinDynify, from_closure};
+/// # use dynify::{from_closure, PinDynify};
 /// # use std::future::Future;
 /// # pollster::block_on(async {
 /// let fut = async { String::from("(o.O)") };
