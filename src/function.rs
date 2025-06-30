@@ -34,6 +34,9 @@ impl<Args, Ret: ?Sized> From<Fn<Args, Ret>> for crate::constructor::PinDynify<Fn
     }
 }
 
+/// A helper struct to display friendly errors.
+pub struct MustNotBeClosure;
+
 /// Creates a constructor for the return type of the specified function.
 ///
 /// All arguments required for `F` should be packed into `args` as a tuple.
@@ -45,7 +48,7 @@ impl<Args, Ret: ?Sized> From<Fn<Args, Ret>> for crate::constructor::PinDynify<Fn
 /// `init` may not write data to the supplied slot of different layouts than the
 /// return type of `F`.
 pub const unsafe fn from_bare_fn<F, Args, Ret>(
-    _: &F,
+    _: fn(MustNotBeClosure) -> F,
     args: Args,
     init: unsafe fn(Slot, Args) -> NonNull<Ret>,
 ) -> Fn<Args, Ret>
@@ -68,7 +71,7 @@ where
 ///
 /// See [`from_bare_fn`].
 pub const unsafe fn from_method<A, F, Args, Ret>(
-    _: &F,
+    _: fn(MustNotBeClosure) -> F,
     args: Args,
     init: unsafe fn(Slot, Args) -> NonNull<Ret>,
 ) -> Fn<Args, Ret>
@@ -77,7 +80,7 @@ where
     Method<A, F::Ret>: Function<Args>,
     Ret: ?Sized,
 {
-    from_bare_fn(&Method::<A, F::Ret>(PhantomData), args, init)
+    from_bare_fn(|_| Method::<A, F::Ret>(PhantomData), args, init)
 }
 
 /// A blanked trait implemented for arbitrary functions.
@@ -165,7 +168,7 @@ macro_rules! __from_fn {
         // the constructor is wrapped in `Dynify` or `PinDynify`.
         unsafe {
             ::core::convert::Into::into($crate::r#priv::from_method(
-                &$f,
+                |_| $f,
                 ($crate::r#priv::Receiver::seal($self), $($args,)*),
                 |slot, (this, $($args,)*)| {
                     let this = $crate::r#priv::Receiver::unseal(this);
@@ -180,7 +183,7 @@ macro_rules! __from_fn {
         // SAFETY: See the comment above.
         unsafe {
             ::core::convert::Into::into($crate::r#priv::from_bare_fn(
-                &$f,
+                |_| $f,
                 ($($args,)*),
                 |slot, ($($args,)*)| {
                     let ret = ($f)($($args,)*);
