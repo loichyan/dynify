@@ -284,22 +284,29 @@ mod __alloc {
             C: Construct<Object = T>,
         {
             unsafe {
-                let slot = box_emlace(constructor.layout());
-                let ptr = constructor.construct(slot);
+                let layout = constructor.layout();
+                let slot = box_emlace(layout);
+
+                // Recycle the allocated memory to prevent memory leaks if
+                // `construct()` panics.
+                let clean_on_panic =
+                    crate::utils::defer(|| alloc::alloc::dealloc(slot.as_ptr(), layout));
+                let ptr = constructor.construct(Slot::new(slot));
+                core::mem::forget(clean_on_panic);
+
                 Ok(Box::from_raw(ptr.as_ptr()))
             }
         }
     }
     // Pinned box
     unsafe impl<T: ?Sized> PinEmplace<T> for Boxed {}
-    unsafe fn box_emlace(layout: Layout) -> Slot {
+    unsafe fn box_emlace(layout: Layout) -> NonNull<u8> {
         if layout.size() == 0 {
-            return dangling_slot(layout);
+            return dangling_slot(layout).into_raw();
         }
         // SAFETY: `layout` is non-zero in size,
-        let slot = NonNull::new(alloc::alloc::alloc(layout))
-            .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout));
-        Slot::new(slot)
+        NonNull::new(alloc::alloc::alloc(layout))
+            .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout))
     }
 
     // Normal vector

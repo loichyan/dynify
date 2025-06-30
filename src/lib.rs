@@ -5,6 +5,8 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+#[macro_use]
+mod utils;
 mod closure;
 mod constructor;
 mod container;

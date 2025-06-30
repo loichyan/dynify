@@ -125,13 +125,6 @@ impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M, N       -> R);
 impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O    -> R);
 impl_function!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P -> R); // 16 arguments
 
-macro_rules! doc_macro {
-    ($(#[$attr:meta])* macro $name:ident $documented:tt $real:tt) => {
-        #[cfg(doc)] $(#[$attr])* macro_rules! $name $documented
-        #[cfg(not(doc))] $(#[$attr])* macro_rules! $name $real
-    };
-}
-
 doc_macro! {
     /// Creates [`Construct`] from static functions.
     ///
