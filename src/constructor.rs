@@ -1,9 +1,11 @@
 use core::alloc::Layout;
 use core::fmt;
+use core::marker::PhantomData;
 use core::pin::Pin;
 use core::ptr::NonNull;
 
 use crate::container::{Emplace, PinEmplace};
+use crate::utils::Void;
 
 /// The core trait to package necessary information for object constructions.
 ///
@@ -25,7 +27,7 @@ use crate::container::{Emplace, PinEmplace};
 ///         Layout::new::<i32>()
 ///     }
 ///     unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object> {
-///         slot.write((self.0)()) as NonNull<_>
+///         slot.write_unchecked((self.0)()) as NonNull<_>
 ///     }
 /// }
 /// unsafe impl Construct for I32Construct {}
@@ -109,8 +111,8 @@ unsafe impl<T: PinConstruct> PinConstruct for &'_ mut Option<T> {
 unsafe impl<T: Construct> Construct for &'_ mut Option<T> {}
 
 /// A memory block used to store arbitrary objects.
-pub struct Slot(crate::VoidPtr);
-impl Slot {
+pub struct Slot<'a, T: ?Sized = Void>(NonNull<T>, PhantomData<&'a mut T>);
+impl<'a> Slot<'a> {
     /// Creates a new slot from the supplied pointer.
     ///
     /// # Safety
@@ -120,32 +122,79 @@ impl Slot {
     ///   hence `ptr` must meet all safety requirements of [`construct`].
     ///
     /// [`construct`]: PinConstruct::construct
-    pub unsafe fn new(ptr: NonNull<u8>) -> Self {
-        Self(ptr.cast())
+    pub unsafe fn new_unchecked(ptr: NonNull<u8>) -> Self {
+        Self(ptr.cast(), PhantomData)
     }
 
-    /// Consumes this slot and fills it with the supplied object.
+    /// Consumes this slot, filling it with the supplied object.
     ///
     /// # Safety
     ///
     /// The object may not have a different layout than the one returned from
     /// [`PinConstruct::layout`].
-    pub unsafe fn write<T>(self, object: T) -> NonNull<T> {
+    pub unsafe fn write_unchecked<T>(self, object: T) -> NonNull<T> {
         let ptr = self.0.cast::<T>();
         debug_assert!(ptr.is_aligned());
         ptr.write(object);
         ptr
     }
 
+    /// Transforms this slot into a typed one.
+    ///
+    /// # Safety
+    ///
+    /// The layout of `T` must match that from [`PinConstruct::layout`] exactly.
+    pub unsafe fn cast<T>(self) -> Slot<'a, T> {
+        Slot(self.0.cast(), PhantomData)
+    }
+}
+impl<'a, T> Slot<'a, T> {
+    /// Consumes this slot, filling it with the supplied object.
+    ///
+    /// The returned object is sealed in [`Opaque`] to prevent misuse. Despite
+    /// this, as demonstrated below, it's still possible to coerce it into a
+    /// trait object:
+    ///
+    /// ```rust
+    /// # use dynify::{Opaque, Slot};
+    /// # use std::any::Any;
+    /// fn fill_slot(slot: Slot<String>) -> &mut Opaque<dyn Any> {
+    ///     slot.write(String::from("WRYYY!")) as &mut Opaque<dyn Any>
+    /// }
+    /// ```
+    pub fn write(self, object: T) -> &'a mut Opaque<T> {
+        unsafe {
+            Slot::new_unchecked(self.into_raw())
+                .write_unchecked(Opaque(object))
+                .as_mut()
+        }
+    }
+}
+impl<'a, T: ?Sized> Slot<'a, T> {
     /// Consumes this instance, returning a raw pointer to the memory block.
     pub fn into_raw(self) -> NonNull<u8> {
         self.0.cast()
     }
 }
 
-impl fmt::Debug for Slot {
+impl<T: ?Sized> fmt::Debug for Slot<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+/// A opaque wrapper of initialized objects.
+///
+/// This structure has the same in-memory representation as its inner type `T`.
+/// Therefore, it is possible, although highly discouraged, to [`transmute`]
+/// between `Opaque<T>` and `T`.
+///
+/// [`transmute`]: core::mem::transmute
+#[repr(transparent)]
+pub struct Opaque<T: ?Sized>(T);
+impl<T: ?Sized> Opaque<T> {
+    pub(crate) fn as_mut(&mut self) -> &mut T {
+        &mut self.0
     }
 }
 

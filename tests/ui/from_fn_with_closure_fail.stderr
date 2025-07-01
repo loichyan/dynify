@@ -13,7 +13,7 @@ note: expected fn pointer, found closure
 3 |     dynify::from_fn!(move || var);
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = note: expected fn pointer `fn(dynify::function::MustNotBeClosure) -> {closure@$DIR/tests/ui/from_fn_with_closure_fail.rs:3:22: 3:29}`
-                found closure `{closure@$DIR/src/function.rs:182:17: 182:18}`
+                found closure `{closure@$DIR/src/function.rs:183:17: 183:18}`
 note: closures can only be coerced to `fn` types if they do not capture any variables
  --> tests/ui/from_fn_with_closure_fail.rs:3:30
   |
@@ -24,8 +24,8 @@ note: expected fn pointer, found closure
   |
 3 |     dynify::from_fn!(move || var);
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  = note: expected fn pointer `unsafe fn(Slot, ()) -> NonNull<_>`
-                found closure `{closure@$DIR/src/function.rs:184:17: 184:37}`
+  = note: expected fn pointer `for<'a> unsafe fn(Slot<'a>, ()) -> &'a mut Opaque<_>`
+                found closure `{closure@$DIR/src/function.rs:185:17: 185:37}`
 note: closures can only be coerced to `fn` types if they do not capture any variables
  --> tests/ui/from_fn_with_closure_fail.rs:3:30
   |

@@ -1,9 +1,8 @@
-use std::any::Any;
 use std::mem;
 
 use rstest::rstest;
 
-use crate::utils::{boxed_slice, randarr, DebugAny, DropCounter};
+use crate::utils::{boxed_slice, randarr, DebugAny, DropCounter, OpqAny};
 use crate::{from_closure, Dynify, Emplace, PinDynify};
 
 struct UnsafePinnedContainer<C>(C);
@@ -42,14 +41,14 @@ impl<C: ?Sized> UnsafePinnedContainer<&'_ mut C> {
 fn init_ok<const N: usize>(#[case] stk_size: usize, #[case] data: [u8; N]) {
     let mut stk = boxed_slice(stk_size);
 
-    let init = from_closure(|slot| slot.write(data) as &mut dyn Any);
+    let init = from_closure(|slot| slot.write(data) as &mut OpqAny);
     let out = init.init(&mut *stk);
     assert_eq!(out.downcast_ref::<[u8; N]>(), Some(&data));
     drop(out);
 
     let mut stk = UnsafePinnedContainer(&mut *stk);
 
-    let init = from_closure(|slot| slot.write(data) as &mut dyn Any);
+    let init = from_closure(|slot| slot.write(data) as &mut OpqAny);
     let out = init.pin_init(stk.as_mut());
     assert_eq!(out.downcast_ref::<[u8; N]>(), Some(&data));
 }
@@ -67,7 +66,7 @@ fn init2_ok<const N: usize>(
     let mut stk1 = boxed_slice(stk1_size);
     let mut stk2 = boxed_slice(stk2_size);
 
-    let mut init = from_closure(|slot| slot.write(data) as &mut dyn Any);
+    let mut init = from_closure(|slot| slot.write(data) as &mut OpqAny);
     (init, _) = init.try_init(&mut *stk1).unwrap_err();
     let out = init.init2(&mut *stk1, &mut *stk2);
     assert_eq!(out.downcast_ref::<[u8; N]>(), Some(&data));
@@ -76,7 +75,7 @@ fn init2_ok<const N: usize>(
     let mut stk1 = UnsafePinnedContainer(&mut *stk1);
     let mut stk2 = UnsafePinnedContainer(&mut *stk2);
 
-    let mut init = from_closure(|slot| slot.write(data) as &mut dyn Any);
+    let mut init = from_closure(|slot| slot.write(data) as &mut OpqAny);
     (init, _) = init.try_pin_init(stk1.as_mut()).unwrap_err();
     let out = init.pin_init2(stk1.as_mut(), stk2.as_mut());
     assert_eq!(out.downcast_ref::<[u8; N]>(), Some(&data));
@@ -132,11 +131,11 @@ fn panic_on_pin_init_fail(
 fn drop_boxed() {
     assert_eq!(DropCounter::count(), 0);
 
-    let init = from_closure(|slot| slot.write(DropCounter) as &mut dyn Any);
+    let init = from_closure(|slot| slot.write(DropCounter) as &mut OpqAny);
     drop(init.boxed());
     assert_eq!(DropCounter::count(), 1);
 
-    let init = from_closure(|slot| slot.write(DropCounter) as &mut dyn Any);
+    let init = from_closure(|slot| slot.write(DropCounter) as &mut OpqAny);
     drop(init.pin_boxed());
     assert_eq!(DropCounter::count(), 2);
 }

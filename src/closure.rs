@@ -1,41 +1,38 @@
 use core::alloc::Layout;
 use core::marker::PhantomData;
-use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 
-use crate::constructor::{Construct, PinConstruct, Slot};
+use crate::constructor::{Construct, Opaque, PinConstruct, Slot};
 
 /// The constructor created by [`from_closure`].
 pub struct Closure<T, F>(F, PhantomData<T>);
+// SAFETY:
+// - A typed slot only accepts writes of objects of type `T`, ensuring that the
+//   layout of the target object always matches `layout()`.
+// - Due to the Higher-Rank Trait Bounds of `F`, references to slots passed to
+//   it cannot be moved out, making it impossible to return a slot from an
+//   arbitrary address in safe Rust.
+// - Once a slot is consumed, it returns an opaque reference to the filled
+//   object, which cannot be projected, thus guaranteeing that the layout of its
+//   pointee always matches `T`.
 unsafe impl<T, U, F> PinConstruct for Closure<T, F>
 where
     U: ?Sized,
-    F: FnOnce(&mut MaybeUninit<T>) -> &mut U,
+    F: FnOnce(Slot<T>) -> &mut Opaque<U>,
 {
     type Object = U;
     fn layout(&self) -> Layout {
         Layout::new::<T>()
     }
     unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object> {
-        let mut uninit = slot.write(MaybeUninit::<T>::uninit());
-        let ptr = (self.0)(uninit.as_mut());
-        assert_eq!(
-            ptr as *const U as *const (),
-            uninit.as_ptr() as *const (),
-            "address mismatches"
-        );
-        assert_eq!(
-            Layout::for_value(ptr),
-            Layout::new::<T>(),
-            "layout mismatches"
-        );
-        NonNull::from(ptr)
+        let ptr = (self.0)(slot.cast());
+        NonNull::from(ptr.as_mut())
     }
 }
 unsafe impl<T, U, F> Construct for Closure<T, F>
 where
     U: ?Sized,
-    F: FnOnce(&mut MaybeUninit<T>) -> &mut U,
+    F: FnOnce(Slot<T>) -> &mut Opaque<U>,
 {
 }
 
@@ -51,28 +48,26 @@ where
 /// # Example
 ///
 /// ```rust
-/// # use dynify::{from_closure, PinDynify};
+/// # use dynify::{from_closure, Opaque, PinDynify};
 /// # use std::future::Future;
 /// # pollster::block_on(async {
 /// let fut = async { String::from("(o.O)") };
-/// let kmoji = from_closure(|slot| slot.write(fut) as &mut dyn Future<Output = String>);
+/// let kmoji = from_closure(|slot| {
+///     // The initialized object is selaed in `Opaque`,
+///     let init: &mut Opaque<_> = slot.write(fut);
+///     // but it doesn't prevent us from coercing it into a trait object.
+///     init as &mut Opaque<dyn Future<Output = String>>
+/// });
 /// assert_eq!(kmoji.pin_boxed().await, "(o.O)");
 /// # });
 /// ```
-///
-/// # Panic
-///
-/// This function itself does not panic, but if `f` returns a reference that
-/// violates the construction contract, that is, the reference has a different
-/// address or pointee layout than the provided slot, it will trigger a panic
-/// during the [`construct`] method of the returned instance.
 ///
 /// [`construct`]: PinConstruct::construct
 #[inline(always)]
 pub fn from_closure<T, U, F>(f: F) -> Closure<T, F>
 where
     U: ?Sized,
-    F: FnOnce(&mut MaybeUninit<T>) -> &mut U,
+    F: FnOnce(Slot<T>) -> &mut Opaque<U>,
 {
     Closure(f, PhantomData)
 }
@@ -80,26 +75,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::{randstr, StrFut};
-    use crate::{Dynify, PinDynify};
+    use crate::utils::{randstr, OpqStrFut};
+    use crate::PinDynify;
 
     #[pollster::test]
     async fn from_closure_works() {
         let inp = randstr(8..64);
-        let init = from_closure(|slot| slot.write(async { inp.clone() }) as &mut StrFut);
+        let init = from_closure(|slot| slot.write(async { inp.clone() }) as &mut OpqStrFut);
         assert_eq!(init.pin_boxed().await, inp);
-    }
-
-    #[test]
-    #[should_panic = "address mismatches"]
-    #[cfg_attr(miri, ignore)] // ignore memory leaks
-    fn panic_on_bad_addr() {
-        from_closure(|_: &mut MaybeUninit<i32>| Box::leak(Box::new(123))).boxed();
-    }
-
-    #[test]
-    #[should_panic = "layout mismatches"]
-    fn panic_on_bad_layout() {
-        from_closure(|slot| &mut slot.write((123, 456)).0).boxed();
     }
 }

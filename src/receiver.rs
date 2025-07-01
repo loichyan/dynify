@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::{Void, VoidPtr};
+use crate::utils::{Void, VoidPtr};
 
 /// A utility trait used to erase the type of a method receiver.
 ///

@@ -1,4 +1,4 @@
-error[E0605]: non-primitive cast: `NonNull<i32>` as `NonNull<u32>`
+error[E0605]: non-primitive cast: `&mut Opaque<i32>` as `&mut Opaque<u32>`
  --> tests/ui/from_fn_with_wrong_type_fail.rs:2:34
   |
 2 |     let _: dynify::Fn!(=> u32) = dynify::from_fn!(|| 123i32);

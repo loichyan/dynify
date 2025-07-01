@@ -2,20 +2,21 @@ use core::alloc::Layout;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::constructor::{Construct, PinConstruct, Slot};
+use crate::constructor::{Construct, Opaque, PinConstruct, Slot};
 use crate::receiver::Receiver;
 
 /// A constructor for the return type of functions.
 pub struct Fn<Args, Ret: ?Sized> {
     layout: Layout,
-    init: unsafe fn(Slot, Args) -> NonNull<Ret>,
+    init: unsafe fn(Slot, Args) -> &mut Opaque<Ret>,
     args: Args,
 }
 
 unsafe impl<Args, Ret: ?Sized> PinConstruct for Fn<Args, Ret> {
     type Object = Ret;
     unsafe fn construct(self, slot: Slot) -> NonNull<Self::Object> {
-        (self.init)(slot, self.args)
+        let ptr = (self.init)(slot, self.args);
+        NonNull::from(ptr.as_mut())
     }
     fn layout(&self) -> Layout {
         self.layout
@@ -42,7 +43,7 @@ pub struct MustNotBeClosure;
 pub unsafe fn from_bare_fn<F, Args, Ret>(
     _: fn(MustNotBeClosure) -> F,
     args: Args,
-    init: unsafe fn(Slot, Args) -> NonNull<Ret>,
+    init: unsafe fn(Slot, Args) -> &mut Opaque<Ret>,
 ) -> Fn<Args, Ret>
 where
     F: Function<Args>,
@@ -66,7 +67,7 @@ where
 pub unsafe fn from_method<F, Args, Ret>(
     _: fn(MustNotBeClosure) -> F,
     args: Args,
-    init: unsafe fn(Slot, F::SealedArgs) -> NonNull<Ret>,
+    init: unsafe fn(Slot, F::SealedArgs) -> &mut Opaque<Ret>,
 ) -> Fn<F::SealedArgs, Ret>
 where
     F: Method<Args>,
@@ -169,8 +170,8 @@ macro_rules! __from_fn {
                 |slot, (this, $($args,)*)| {
                     let this = $crate::r#priv::Receiver::unseal(this);
                     let ret = ($f)(this, $($args,)*);
-                    let ptr = slot.write(ret);
-                    ptr as ::core::ptr::NonNull<_>
+                    let ptr = slot.cast().write(ret);
+                    ptr as &mut $crate::Opaque::<_>
                 },
             )
         }
@@ -183,8 +184,8 @@ macro_rules! __from_fn {
                 ($($args,)*),
                 |slot, ($($args,)*)| {
                     let ret = ($f)($($args,)*);
-                    let ptr = slot.write(ret);
-                    ptr as ::core::ptr::NonNull<_>
+                    let ptr = slot.cast().write(ret);
+                    ptr as &mut $crate::Opaque::<_>
                 },
             )
         }

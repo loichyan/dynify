@@ -254,7 +254,10 @@ unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut [MaybeUninit<u8>] {
         }
     }
 }
-unsafe fn buf_emplace(buf: &mut [MaybeUninit<u8>], layout: Layout) -> Result<Slot, OutOfCapacity> {
+unsafe fn buf_emplace(
+    buf: &mut [MaybeUninit<u8>],
+    layout: Layout,
+) -> Result<Slot<'_>, OutOfCapacity> {
     if layout.size() == 0 {
         return Ok(dangling_slot(layout));
     }
@@ -267,7 +270,7 @@ unsafe fn buf_emplace(buf: &mut [MaybeUninit<u8>], layout: Layout) -> Result<Slo
         return Err(OutOfCapacity);
     }
     let slot = start.add(align_offset).cast::<u8>();
-    Ok(Slot::new(NonNull::new_unchecked(slot)))
+    Ok(Slot::new_unchecked(NonNull::new_unchecked(slot)))
 }
 
 #[cfg(feature = "alloc")]
@@ -298,7 +301,7 @@ mod __alloc {
                 // `construct()` panics.
                 let clean_on_panic =
                     crate::utils::defer(|| alloc::alloc::dealloc(slot.as_ptr(), layout));
-                let ptr = constructor.construct(Slot::new(slot));
+                let ptr = constructor.construct(Slot::new_unchecked(slot));
                 core::mem::forget(clean_on_panic);
 
                 Ok(Box::from_raw(ptr.as_ptr()))
@@ -345,7 +348,7 @@ mod __alloc {
             }
         }
     }
-    unsafe fn vec_emplace(vec: &mut Vec<MaybeUninit<u8>>, layout: Layout) -> Slot {
+    unsafe fn vec_emplace(vec: &mut Vec<MaybeUninit<u8>>, layout: Layout) -> Slot<'_> {
         if layout.size() == 0 {
             return dangling_slot(layout);
         }
@@ -360,15 +363,15 @@ mod __alloc {
             align_offset = buf.align_offset(layout.align());
         }
         let slot = buf.add(align_offset).cast::<u8>();
-        Slot::new(NonNull::new_unchecked(slot))
+        Slot::new_unchecked(NonNull::new_unchecked(slot))
     }
 }
 #[cfg(feature = "alloc")]
 pub use __alloc::*;
 
 // TODO: is it possible to use strict provenance APIs?
-unsafe fn dangling_slot(layout: Layout) -> Slot {
-    Slot::new(NonNull::new_unchecked(layout.align() as *mut u8))
+unsafe fn dangling_slot<'a>(layout: Layout) -> Slot<'a> {
+    Slot::new_unchecked(NonNull::new_unchecked(layout.align() as *mut u8))
 }
 
 #[cfg(test)]

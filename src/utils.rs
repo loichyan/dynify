@@ -1,5 +1,8 @@
 use core::mem::ManuallyDrop;
 
+pub enum Void {}
+pub(crate) type VoidPtr = core::ptr::NonNull<Void>;
+
 /// Defines a macro with its internal rules hidden on rustdoc.
 macro_rules! doc_macro {
     ($(#[$attr:meta])* macro $name:ident $documented:tt $real:tt) => {
@@ -32,6 +35,8 @@ mod test_utils {
     impl<T: Any + fmt::Debug> DebugAny for T {}
 
     pub(crate) type StrFut<'a> = dyn 'a + Future<Output = String>;
+    pub(crate) type OpqStrFut<'a> = crate::Opaque<dyn 'a + Future<Output = String>>;
+    pub(crate) type OpqAny<'a> = crate::Opaque<dyn 'a + Any>;
 
     /// A thread-local counter that increments when it gets dropped.
     pub(crate) struct DropCounter;

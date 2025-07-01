@@ -16,7 +16,7 @@ mod function;
 mod receiver;
 
 pub use self::closure::from_closure;
-pub use self::constructor::{Construct, Dynify, PinConstruct, PinDynify, Slot};
+pub use self::constructor::{Construct, Dynify, Opaque, PinConstruct, PinDynify, Slot};
 #[cfg(feature = "alloc")]
 pub use self::container::Boxed;
 pub use self::container::{Buffered, Emplace, OutOfCapacity, PinEmplace};
@@ -33,6 +33,3 @@ pub mod r#priv {
     pub type PinRcSelf = crate::receiver::Pin<RcSelf>;
     pub type PinArcSelf = crate::receiver::Pin<ArcSelf>;
 }
-
-type VoidPtr = core::ptr::NonNull<Void>;
-enum Void {}
