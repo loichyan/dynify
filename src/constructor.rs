@@ -171,8 +171,14 @@ impl<'a, T> Slot<'a, T> {
     }
 }
 impl<'a, T: ?Sized> Slot<'a, T> {
-    /// Consumes this instance, returning a raw pointer to the memory block.
+    /// Consumes this instance, returning a raw pointer to the allocated memory
+    /// block.
     pub fn into_raw(self) -> NonNull<u8> {
+        self.0.cast()
+    }
+
+    /// Returns a raw pointer to the allocated memory block.
+    pub(crate) fn as_ptr(&self) -> NonNull<u8> {
         self.0.cast()
     }
 }

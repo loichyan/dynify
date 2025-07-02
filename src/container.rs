@@ -248,9 +248,13 @@ unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut [MaybeUninit<u8>] {
         C: Construct<Object = T>,
     {
         unsafe {
-            let slot = buf_emplace(self, constructor.layout())?;
-            let ptr = constructor.construct(slot);
-            Ok(Buffered::from_raw(ptr))
+            let layout = constructor.layout();
+            let slot = buf_emplace(self, layout)?;
+            let ptr = slot.as_ptr();
+
+            let init = constructor.construct(slot);
+            validate_slot(ptr, layout, init);
+            Ok(Buffered::from_raw(init))
         }
     }
 }
@@ -269,8 +273,8 @@ unsafe fn buf_emplace(
     if total_bytes > buf.len() {
         return Err(OutOfCapacity);
     }
-    let slot = start.add(align_offset).cast::<u8>();
-    Ok(Slot::new_unchecked(NonNull::new_unchecked(slot)))
+    let ptr = start.add(align_offset).cast::<u8>();
+    Ok(Slot::new_unchecked(NonNull::new_unchecked(ptr)))
 }
 
 #[cfg(feature = "alloc")]
@@ -296,27 +300,30 @@ mod __alloc {
             unsafe {
                 let layout = constructor.layout();
                 let slot = box_emlace(layout);
+                let ptr = slot.as_ptr();
 
                 // Recycle the allocated memory to prevent memory leaks if
                 // `construct()` panics.
                 let clean_on_panic =
-                    crate::utils::defer(|| alloc::alloc::dealloc(slot.as_ptr(), layout));
-                let ptr = constructor.construct(Slot::new_unchecked(slot));
-                core::mem::forget(clean_on_panic);
+                    crate::utils::defer(|| alloc::alloc::dealloc(ptr.as_ptr(), layout));
+                let init = constructor.construct(slot);
+                validate_slot(ptr, layout, init);
 
-                Ok(Box::from_raw(ptr.as_ptr()))
+                core::mem::forget(clean_on_panic);
+                Ok(Box::from_raw(init.as_ptr()))
             }
         }
     }
     // Pinned box
     unsafe impl<T: ?Sized> PinEmplace<T> for Boxed {}
-    unsafe fn box_emlace(layout: Layout) -> NonNull<u8> {
+    unsafe fn box_emlace(layout: Layout) -> Slot<'static> {
         if layout.size() == 0 {
-            return dangling_slot(layout).into_raw();
+            return dangling_slot(layout);
         }
         // SAFETY: `layout` is non-zero in size,
-        NonNull::new(alloc::alloc::alloc(layout))
-            .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout))
+        let ptr = NonNull::new(alloc::alloc::alloc(layout))
+            .unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout));
+        Slot::new_unchecked(ptr)
     }
 
     // Normal vector
@@ -342,9 +349,13 @@ mod __alloc {
             C: Construct<Object = T>,
         {
             unsafe {
-                let slot = vec_emplace(self, constructor.layout());
-                let ptr = constructor.construct(slot);
-                Ok(Buffered::from_raw(ptr))
+                let layout = constructor.layout();
+                let slot = vec_emplace(self, layout);
+                let ptr = slot.as_ptr();
+
+                let init = constructor.construct(slot);
+                validate_slot(ptr, layout, init);
+                Ok(Buffered::from_raw(init))
             }
         }
     }
@@ -372,6 +383,15 @@ pub use __alloc::*;
 // TODO: is it possible to use strict provenance APIs?
 unsafe fn dangling_slot<'a>(layout: Layout) -> Slot<'a> {
     Slot::new_unchecked(NonNull::new_unchecked(layout.align() as *mut u8))
+}
+
+fn validate_slot<T: ?Sized>(ptr: NonNull<u8>, layout: Layout, init: NonNull<T>) {
+    if cfg!(debug_assertions) {
+        let init_ptr = init.cast::<u8>();
+        assert_eq!(init_ptr, ptr, "initialized address mismatches");
+        let init_layout = unsafe { Layout::for_value(init.as_ref()) };
+        assert_eq!(init_layout, layout, "initialized layout mismatches");
+    }
 }
 
 #[cfg(test)]
