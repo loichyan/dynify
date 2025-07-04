@@ -49,9 +49,9 @@ jobs:
       matrix:
         include:
           # prettier-ignore
-          - { os: ubuntu-20.04, toolchain: "${{ needs.metadata.outputs.rust_version }}" }
-          - { os: ubuntu-20.04, toolchain: nightly }
-          - { os: ubuntu-20.04, toolchain: stable  }
+          - { os: ubuntu-latest, toolchain: "${{ needs.metadata.outputs.rust_version }}" }
+          - { os: ubuntu-latest, toolchain: nightly }
+          - { os: ubuntu-latest, toolchain: stable  }
     runs-on: ${{ matrix.os }}
     steps:
       - name: Setup | Checkout
