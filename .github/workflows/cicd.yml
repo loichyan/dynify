@@ -62,7 +62,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable # Avoid frequent cache updates
         with:
           toolchain: ${{ matrix.toolchain }}
-          components: clippy,rustfmt
+          components: clippy,rustfmt,rust-src
       - run: rustup override set '${{ steps.setup-rust.outputs.name }}' # Override rust-toolchain.toml
 
       - name: Setup | Install cargo-audit
