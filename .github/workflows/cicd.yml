@@ -1,0 +1,129 @@
+# Adapted from:
+# - https://github.com/starship/starship/blob/27cc4bc/.github/workflows/release.yml
+# - https://github.com/sharkdp/bat/blob/6fc5882/.github/workflows/CICD.yml
+name: CICD
+on:
+  push: { branches: [main] }
+  pull_request:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  metadata:
+    name: Extract crate metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup | Rust
+        id: setup-rust
+        uses: dtolnay/rust-toolchain@stable
+      - run: rustup override set '${{ steps.setup-rust.outputs.name }}'
+
+      - name: Setup | Extract crate metadata
+        id: metadata
+        run: |
+          cargo metadata --no-deps --format-version=1 \
+            | jq -r '.packages[0]
+              | {name, version, rust_version}
+              | to_entries
+              | map("\(.key)=\(.value)")
+              | join("\n")' \
+            | tee -a $GITHUB_OUTPUT
+    outputs:
+      name: ${{ steps.metadata.outputs.name }}
+      version: ${{ steps.metadata.outputs.version }}
+      rust_version: ${{ steps.metadata.outputs.rust_version }}
+
+  check:
+    name: Run tests and checks
+    needs: [metadata]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # prettier-ignore
+          - { os: ubuntu-20.04, toolchain: "${{ needs.metadata.outputs.rust_version }}" }
+          - { os: ubuntu-20.04, toolchain: nightly }
+          - { os: ubuntu-20.04, toolchain: stable  }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup | Rust
+        id: setup-rust
+        uses: dtolnay/rust-toolchain@stable # Avoid frequent cache updates
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: clippy,rustfmt
+      - run: rustup override set '${{ steps.setup-rust.outputs.name }}' # Override rust-toolchain.toml
+
+      - name: Setup | Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Setup | Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Post Setup | Show information
+        run: |
+          gcc --version || true
+          cargo --version
+          rustc --version
+
+      - name: Check | Audit
+        run: cargo audit
+
+      - name: Check | Formatting
+        run: cargo fmt --check
+
+      - name: Check | Clippy
+        run: cargo clippy --locked
+
+      - name: Check | Test suite
+        run: cargo test --locked
+
+      - name: Check | Build
+        run: cargo build --locked
+
+  release:
+    name: Create GitHub release
+    needs: [metadata]
+    if: github.repository == 'loichyan/dynify'
+    permissions:
+      contents: write # Need to update release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v4
+
+      # For a PR from "release/v1.0.0", the release tag is set to "v1.0.0"
+      - name: Setup | Configure
+        id: configure
+        run: echo tag="${GITHUB_HEAD_REF#release/}" >$GITHUB_OUTPUT
+
+      # Release notes are taken from the PR's body
+      - name: Release | Create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          release_tag: ${{ steps.configure.outputs.tag }}
+          release_body: ${{ github.event.pull_request.body }}
+        run: |
+          if gh release view --json= "$release_tag" &>/dev/null; then
+            echo "update existed release $release_tag"
+            command=edit
+          else
+            echo "create new release $release_tag"
+            command=create
+          fi
+          gh release "$command" "$release_tag" \
+            --target="$GITHUB_BASE_REF" \
+            --draft=true \
+            --title="$release_tag ($(date -u +'%Y-%m-%d'))" \
+            --notes="$release_body"
