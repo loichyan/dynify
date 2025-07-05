@@ -34,13 +34,14 @@ noticeable to end-users since the last release. For developers, this project fol
 
 ### Added
 
-- Implement `Emplace` for `&mut MaybeUninit<[u8; N]>` ([#PR]).
+- Implement `Emplace` for `&mut MaybeUninit<[u8; N]>` ([#2]).
 
 ### Removed
 
-- (**BREAKING**) Remove `Emplace` implementations for `&mut [u8]` and `&mut Vec<u8>` ([#PR]).
+- (**BREAKING**) Remove `Emplace` implementations for `&mut [u8; N]`, `&mut [u8]` and `&mut Vec<u8>`
+  ([#2]).
 
-[#PR]: https://github.com/loichyan/dynify/pull/PR
+[#2]: https://github.com/loichyan/dynify/pull/2
 
 ## [0.0.1] - 2025-07-05
 
