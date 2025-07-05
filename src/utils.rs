@@ -25,6 +25,7 @@ pub(crate) fn defer<F: FnOnce()>(f: F) -> Defer<F> {
 #[allow(clippy::items_after_test_module)]
 #[cfg(test)]
 mod test_utils {
+    use core::mem::MaybeUninit;
     use std::any::Any;
     use std::cell::Cell;
     use std::fmt;
@@ -60,14 +61,22 @@ mod test_utils {
         arr
     }
 
+    pub(crate) fn newstk<const N: usize>() -> [MaybeUninit<u8>; N] {
+        [MaybeUninit::uninit(); N]
+    }
+
     pub(crate) fn randstr(len: impl RangeBounds<usize>) -> String {
         std::iter::repeat_with(fastrand::alphanumeric)
             .take(fastrand::usize(len))
             .collect()
     }
 
-    pub(crate) fn boxed_slice(len: usize) -> Box<[u8]> {
-        vec![0; len].into_boxed_slice()
+    pub(crate) fn newheap(len: usize) -> Vec<MaybeUninit<u8>> {
+        vec![MaybeUninit::uninit(); len]
+    }
+
+    pub(crate) fn newheap_fixed(len: usize) -> Box<[MaybeUninit<u8>]> {
+        newheap(len).into_boxed_slice()
     }
 }
 #[cfg(test)]

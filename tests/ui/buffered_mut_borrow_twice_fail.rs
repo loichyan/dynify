@@ -2,7 +2,7 @@ use dynify::{from_closure, Buffered, Dynify};
 
 // `Buffered` holds mutable reference exclusively
 fn main() {
-    let mut stack = [0u8; 16];
+    let mut stack = std::mem::MaybeUninit::<[u8; 16]>::uninit();
     let init1 = from_closure(|slot| slot.write(123));
     let init2 = from_closure(|slot| slot.write(456));
 

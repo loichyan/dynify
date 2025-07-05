@@ -5,7 +5,7 @@ use std::pin::pin;
 use rstest::rstest;
 
 use super::*;
-use crate::utils::{randarr, randstr, DropCounter, OpqAny, OpqStrFut, StrFut};
+use crate::utils::*;
 use crate::{from_closure, Dynify};
 
 trait DebugEmplace: Emplace<dyn Any, Err = Self::__Err> {
@@ -20,9 +20,8 @@ where
 }
 
 #[rstest]
-#[case(&mut [0u8; 12])]
+#[case(&mut MaybeUninit::<[u8; 12]>::uninit())]
 #[case(&mut [MaybeUninit::new(0u8); 12])]
-#[case(&mut [0u8; 12] as &mut [u8])]
 #[case(&mut [MaybeUninit::new(0u8); 12] as &mut [MaybeUninit<u8>])]
 fn fix_sized_containers<C>(#[case] c: &mut C)
 where
@@ -42,7 +41,6 @@ where
 
 #[rstest]
 #[case(Boxed)]
-#[case(&mut Vec::<u8>::new())]
 #[case(&mut Vec::<MaybeUninit<u8>>::new())]
 fn allocated_containers(#[case] c: impl DebugEmplace) {
     let inp = randarr::<16>();
@@ -54,8 +52,8 @@ fn allocated_containers(#[case] c: impl DebugEmplace) {
 #[rstest]
 #[case(Boxed)]
 #[case(&mut [MaybeUninit::new(0u8); 64])]
-#[case(&mut [0u8; 64] as &mut [u8])]
-#[case(&mut Vec::<u8>::new())]
+#[case(&mut [MaybeUninit::uninit(); 64] as &mut [MaybeUninit<u8>])]
+#[case(&mut Vec::<MaybeUninit<u8>>::new())]
 fn init_object_of_random_layout(#[case] c: impl DebugEmplace) {
     macro_rules! select_layout {
         ($rand:ident, $($align:literal),+) => {$(
@@ -80,8 +78,7 @@ fn init_object_of_random_layout(#[case] c: impl DebugEmplace) {
 #[rstest]
 #[case(Boxed)]
 #[case(&mut Vec::<MaybeUninit<u8>>::new())]
-#[case(&mut [] as &mut [u8])]
-#[case(&mut [] as &mut [u8; 0])]
+#[case(&mut [] as &mut [MaybeUninit<u8>])]
 #[case(&mut [] as &mut [MaybeUninit<u8>; 0])]
 fn never_fail_on_zst(#[case] c: impl DebugEmplace) {
     #[repr(align(4096))]
@@ -94,9 +91,9 @@ fn never_fail_on_zst(#[case] c: impl DebugEmplace) {
 }
 
 #[rstest]
-#[case(&mut [0u8; 24])]
-#[case(&mut [0u8; 24] as &mut [u8])]
-#[case(&mut Vec::<u8>::new())]
+#[case(&mut newstk::<24>())]
+#[case(&mut newstk::<24>() as &mut [MaybeUninit<u8>])]
+#[case(&mut Vec::<MaybeUninit<u8>>::new())]
 fn drop_buffered<'a>(#[case] c: impl 'a + DebugEmplace<Ptr = Buffered<'a, dyn Any>>) {
     let init = from_closure(|slot| slot.write(DropCounter) as &mut OpqAny);
     let out = c.emplace(init).unwrap();
@@ -107,7 +104,7 @@ fn drop_buffered<'a>(#[case] c: impl 'a + DebugEmplace<Ptr = Buffered<'a, dyn An
 
 #[test]
 fn unpin_buffered() {
-    let mut stack = [0u8; 16];
+    let mut stack = newstk::<16>();
     let init = from_closure(|slot| slot.write(123));
     let val: Pin<&mut Buffered<usize>> = pin!(init.init(&mut stack));
     let _: &mut Buffered<usize> = Pin::into_inner(val);
@@ -115,7 +112,7 @@ fn unpin_buffered() {
 
 #[test]
 fn project_buffered() {
-    let mut stack = [0u8; 16];
+    let mut stack = newstk::<16>();
     let init = from_closure(|slot| slot.write(PhantomPinned));
     let mut buf: Pin<&mut Buffered<PhantomPinned>> = pin!(init.init(&mut stack));
     let _: Pin<&mut PhantomPinned> = buf.as_mut().project();
@@ -124,7 +121,7 @@ fn project_buffered() {
 
 #[test]
 fn project_pinned_buffered() {
-    let mut stack = [0u8; 16];
+    let mut stack = newstk::<16>();
     let init = from_closure(|slot| slot.write(123));
     let mut val: Pin<&mut Buffered<usize>> = pin!(init.init(&mut stack));
     let _: Pin<&mut usize> = val.as_mut().project();
@@ -133,7 +130,7 @@ fn project_pinned_buffered() {
 
 #[pollster::test]
 async fn buffered_future() {
-    let mut stack = [0u8; 16];
+    let mut stack = newstk::<16>();
     let inp = randstr(8..64);
     let init = from_closure(|slot| slot.write(async { inp.clone() }) as &mut OpqStrFut);
     let fut: Buffered<StrFut> = stack.emplace(init).unwrap();
@@ -143,7 +140,7 @@ async fn buffered_future() {
 
 #[test]
 fn buffered_raw_ptr() {
-    let mut stack = [0u8; 16];
+    let mut stack = newstk::<16>();
     let stack_ptr = std::ptr::from_ref(&stack);
     let init = from_closure(|slot| slot.write([0u8; 4]));
     let val: Buffered<[u8; 4]> = stack.emplace(init).unwrap();
