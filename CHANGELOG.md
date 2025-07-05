@@ -38,16 +38,16 @@ noticeable to end-users since the last release. For developers, this project fol
 
 ### Changed
 
-- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` (#PRNUM).
+- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` (#4).
 
 ### Removed
 
 - (**BREAKING**) Remove `Emplace` implementations for `&mut [u8; N]`, `&mut [u8]` and `&mut Vec<u8>`
   ([#2]).
 
-- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` (#PRNUM).
+- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` (#4).
 
-[#PRNUM]: https://github.com/loichyan/dynify/pull/PRNUM
+[#4]: https://github.com/loichyan/dynify/pull/4
 [#2]: https://github.com/loichyan/dynify/pull/2
 
 ## [0.0.1] - 2025-07-05
