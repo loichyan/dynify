@@ -160,9 +160,12 @@ doc_macro! {
 #[macro_export]
 macro_rules! __from_fn {
     ([self] $f:expr, $self:ident, $($args:ident,)*) => {
-        // SAFETY: Pinned memory is not required to move the return value of a
-        // function into the supplied slot. Therefore, it doesn't matter whether
-        // the constructor is wrapped in `Dynify` or `PinDynify`.
+        // SAFETY:
+        // - The `Function` trait ensures the layout of the object written to
+        //   `slot` matches the return type of the specified function.
+        // - `Opaque` prevents misuse of the initialized pointers.
+        // - Moving the return value into `slot` does not require pinned memory,
+        //   therefore it doesn't matter where the object is stored.
         unsafe {
             $crate::r#priv::from_method(
                 |_| $f,
