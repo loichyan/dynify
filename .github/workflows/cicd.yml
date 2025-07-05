@@ -62,7 +62,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable # Avoid frequent cache updates
         with:
           toolchain: ${{ matrix.toolchain }}
-          components: clippy,rustfmt,rust-src
+          components: clippy,rustfmt
       - run: rustup override set '${{ steps.setup-rust.outputs.name }}' # Override rust-toolchain.toml
 
       - name: Setup | Install cargo-audit
@@ -115,7 +115,7 @@ jobs:
           release_tag: ${{ steps.configure.outputs.tag }}
           release_body: ${{ github.event.pull_request.body }}
         run: |
-          if gh release view --json= "$release_tag" &>/dev/null; then
+          if gh release view --json="" "$release_tag" &>/dev/null; then
             echo "update existed release $release_tag"
             command=edit
           else
