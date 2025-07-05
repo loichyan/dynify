@@ -294,8 +294,11 @@ mod __alloc {
 
                 // Recycle the allocated memory to prevent memory leaks if
                 // `construct()` panics.
-                let clean_on_panic =
-                    crate::utils::defer(|| alloc::alloc::dealloc(ptr.as_ptr(), layout));
+                let clean_on_panic = crate::utils::defer(|| {
+                    if layout.size() != 0 {
+                        alloc::alloc::dealloc(ptr.as_ptr(), layout)
+                    }
+                });
                 let init = constructor.construct(slot);
                 validate_slot(ptr, layout, init);
 
