@@ -89,13 +89,14 @@ pub unsafe trait PinEmplace<T: ?Sized>: Emplace<T> {
 /// ```rust
 /// # use dynify::{from_fn, Buffered, Dynify, Fn};
 /// # use std::future::Future;
+/// # use std::mem::MaybeUninit;
 /// # use std::pin::Pin;
 /// # pollster::block_on(async {
 /// fn async_hello() -> Fn!(=> dyn Future<Output = String>) {
 ///     from_fn!(|| async { String::from("Hello!") })
 /// }
 ///
-/// let mut stack = [0u8; 32];
+/// let mut stack = MaybeUninit::<[u8; 16]>::uninit();
 /// let fut: Buffered<dyn Future<Output = String>> = async_hello().init(&mut stack);
 /// // Pin it on the stack just as it has the inner type `T = dyn Future`.
 /// let fut: Pin<&mut Buffered<_>> = std::pin::pin!(fut);
@@ -205,7 +206,7 @@ impl fmt::Display for OutOfCapacity {
 }
 
 // Normal buffer
-unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut [u8; N] {
+unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut MaybeUninit<[u8; N]> {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
@@ -213,7 +214,8 @@ unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut [u8; N] {
     where
         C: Construct<Object = T>,
     {
-        self.as_mut_slice().emplace(constructor)
+        let uninit_slice: &mut [MaybeUninit<u8>; N] = unsafe { core::mem::transmute(self) };
+        uninit_slice.emplace(constructor)
     }
 }
 unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut [MaybeUninit<u8>; N] {
@@ -225,18 +227,6 @@ unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut [MaybeUninit<u
         C: Construct<Object = T>,
     {
         self.as_mut_slice().emplace(constructor)
-    }
-}
-unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut [u8] {
-    type Ptr = Buffered<'a, T>;
-    type Err = OutOfCapacity;
-
-    fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
-    where
-        C: Construct<Object = T>,
-    {
-        let maybe_uninit: &mut [MaybeUninit<u8>] = unsafe { core::mem::transmute(self) };
-        maybe_uninit.emplace(constructor)
     }
 }
 unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut [MaybeUninit<u8>] {
@@ -328,18 +318,6 @@ mod __alloc {
 
     // Normal vector
     // TODO: pinned vector?
-    unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut Vec<u8> {
-        type Ptr = Buffered<'a, T>;
-        type Err = Infallible;
-
-        fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
-        where
-            C: Construct<Object = T>,
-        {
-            let maybe_uninit: &mut Vec<MaybeUninit<u8>> = unsafe { core::mem::transmute(self) };
-            maybe_uninit.emplace(constructor)
-        }
-    }
     unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut Vec<MaybeUninit<u8>> {
         type Ptr = Buffered<'a, T>;
         type Err = Infallible;

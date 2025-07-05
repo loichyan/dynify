@@ -39,6 +39,7 @@ it possible to create a dyn compatible variant for `AsyncRead`:
 # }
 use dynify::{from_fn, Dynify, Fn};
 use std::future::Future;
+use std::mem::MaybeUninit;
 
 trait DynAsyncRead {
     // `Fn!()` returns a dyn compatible type for the original async function.
@@ -54,8 +55,8 @@ impl<T: AsyncRead> DynAsyncRead for T {
 // Now we can use dynamic dispatched `AsyncRead`!
 async fn dynamic_dispatch(reader: &mut dyn DynAsyncRead) {
     // Prepare containers, we will see how they are used soon.
-    let mut stack = [0u8; 16];
-    let mut heap = Vec::<u8>::new();
+    let mut stack = [MaybeUninit::<u8>::uninit(); 16];
+    let mut heap = Vec::<MaybeUninit<u8>>::new();
 
     // `read_to_string` returns a constructor, which can be considered as a
     // function pointer to `AsyncRead::read_to_string` along with all necessary
@@ -87,7 +88,7 @@ async fn dynamic_dispatch(reader: &mut dyn DynAsyncRead) {
 problem. However, it may not play well with limited environments such as kernels or embedded
 systems, as it transforms every `async fn()` into `fn() -> Box<dyn Future>`, requiring heap
 allocation. dynify doesn't have such limitation, since you can decide where to place trait objects.
-Additionally, you can opt out of the `alloc` feature to completely disable heap allocation.
+Additionally, you can opt out of the `alloc` feature to completely turn off heap allocation.
 
 Furthermore, dynify offers some unique features compared to async-trait. One of them, as shown in
 the example below, is the ability to reuse buffers across different trait objects:
@@ -95,6 +96,7 @@ the example below, is the ability to reuse buffers across different trait object
 ```rust
 # use dynify::{from_fn, Dynify, Fn, PinDynify};
 # use std::future::Future;
+# use std::mem::MaybeUninit;
 # use std::pin::Pin;
 trait Stream {
     type Item;
@@ -108,8 +110,8 @@ trait DynStream {
 }
 
 async fn process_stream(stream: &mut dyn DynStream<Item = char>) {
-    let mut stack = [0u8; 16];
-    let mut heap = vec![0u8; 0];
+    let mut stack = [MaybeUninit::<u8>::uninit(); 16];
+    let mut heap = Vec::<MaybeUninit<u8>>::new();
 
     // With dynify, all items are stored in the same buffer.
     while let Some(item) = stream.next().init2(&mut stack, &mut heap).await {

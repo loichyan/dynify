@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::mem::MaybeUninit;
 
 use dynify::{from_fn, Dynify, Fn};
 
@@ -9,11 +10,11 @@ trait Stream {
 
 trait DynStream {
     type Item;
-    fn next(&mut self) -> Fn!(&mut Self => dyn '_ + Future<Output = Option<Self::Item>>);
+    fn next(&mut self) -> Fn!(&'_ mut Self => dyn '_ + Future<Output = Option<Self::Item>>);
 }
 impl<T: Stream> DynStream for T {
     type Item = T::Item;
-    fn next(&mut self) -> Fn!(&mut Self => dyn '_ + Future<Output = Option<Self::Item>>) {
+    fn next(&mut self) -> Fn!(&'_ mut Self => dyn '_ + Future<Output = Option<Self::Item>>) {
         from_fn!(T::next, self)
     }
 }
@@ -31,8 +32,8 @@ where
 
 /// Validates the input with dynamic dispatched streams!
 async fn validate_data(data: &str, iter: &mut dyn DynStream<Item = char>) {
-    let mut stack = [0u8; 16];
-    let mut heap = vec![0u8; 0];
+    let mut stack = [MaybeUninit::<u8>::uninit(); 16];
+    let mut heap = Vec::<MaybeUninit<u8>>::new();
     let mut data_iter = data.chars();
 
     while let Some(ch) = iter.next().init2(&mut stack, &mut heap).await {

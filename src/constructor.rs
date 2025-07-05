@@ -251,9 +251,10 @@ pub trait Dynify: Construct {
     /// ```rust
     /// # use dynify::{from_fn, Dynify, Fn};
     /// # use std::future::Future;
+    /// # use std::mem::MaybeUninit;
     /// # pollster::block_on(async {
-    /// let mut stack = [0u8; 32];
-    /// let mut heap = vec![0u8; 0];
+    /// let mut stack = MaybeUninit::<[u8; 16]>::uninit();
+    /// let mut heap = Vec::<MaybeUninit<u8>>::new();
     ///
     /// let constructor: Fn!(=> dyn Future<Output = i32>) = from_fn!(|| async { 777 });
     /// let ret = constructor.init2(&mut stack, &mut heap).await;

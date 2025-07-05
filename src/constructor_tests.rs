@@ -2,7 +2,7 @@ use std::mem;
 
 use rstest::rstest;
 
-use crate::utils::{boxed_slice, randarr, DebugAny, DropCounter, OpqAny};
+use crate::utils::*;
 use crate::{from_closure, Dynify, Emplace, PinDynify};
 
 struct UnsafePinnedContainer<C>(C);
@@ -39,7 +39,7 @@ impl<C: ?Sized> UnsafePinnedContainer<&'_ mut C> {
 #[case(4, randarr::<4>())]
 #[case(7, randarr::<5>())]
 fn init_ok<const N: usize>(#[case] stk_size: usize, #[case] data: [u8; N]) {
-    let mut stk = boxed_slice(stk_size);
+    let mut stk = newheap_fixed(stk_size);
 
     let init = from_closure(|slot| slot.write(data) as &mut OpqAny);
     let out = init.init(&mut *stk);
@@ -63,8 +63,8 @@ fn init2_ok<const N: usize>(
     #[case] stk2_size: usize,
     #[case] data: [u8; N],
 ) {
-    let mut stk1 = boxed_slice(stk1_size);
-    let mut stk2 = boxed_slice(stk2_size);
+    let mut stk1 = newheap_fixed(stk1_size);
+    let mut stk2 = newheap_fixed(stk2_size);
 
     let mut init = from_closure(|slot| slot.write(data) as &mut OpqAny);
     (init, _) = init.try_init(&mut *stk1).unwrap_err();
@@ -92,8 +92,8 @@ fn panic_on_init_fail(
     #[case] stk2_size: usize,
     #[case] val: impl DebugAny,
 ) {
-    let mut stk1 = boxed_slice(stk1_size);
-    let mut stk2 = boxed_slice(stk2_size);
+    let mut stk1 = newheap_fixed(stk1_size);
+    let mut stk2 = newheap_fixed(stk2_size);
 
     let init = from_closure(|slot| slot.write(val));
     if stk2_size == 0 {
@@ -114,9 +114,9 @@ fn panic_on_pin_init_fail(
     #[case] stk2_size: usize,
     #[case] val: impl DebugAny,
 ) {
-    let mut stk1 = boxed_slice(stk1_size);
+    let mut stk1 = newheap_fixed(stk1_size);
     let mut stk1 = UnsafePinnedContainer(&mut *stk1);
-    let mut stk2 = boxed_slice(stk2_size);
+    let mut stk2 = newheap_fixed(stk2_size);
     let mut stk2 = UnsafePinnedContainer(&mut *stk2);
 
     let init = from_closure(|slot| slot.write(val));
@@ -146,8 +146,10 @@ fn drop_boxed() {
 #[case(randarr::<16>())]
 #[case(randarr::<32>())]
 fn fallible_constructor(#[case] val: impl DebugAny) {
-    let mut stack = randarr::<8>();
-    let mut heap = vec![0u8; 16];
+    use crate::utils::newstk;
+
+    let mut stack = newstk::<8>();
+    let mut heap = newheap(0);
 
     let val_size = mem::size_of_val(&val);
     let mut init = Some(from_closure(|slot| slot.write(val)));
