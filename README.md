@@ -35,7 +35,12 @@ impl<T: AsyncRead> DynAsyncRead for T {
 
 // Now we can use dynamic dispatched `AsyncRead`!
 async fn dynamic_dispatch(reader: &mut dyn DynAsyncRead) {
-    /* some mysterious code */
+    let mut stack = [0u8; 16];
+    let mut heap = Vec::<u8>::new();
+    // Initialize trait objects on the stack if not too large, otherwise on the heap.
+    let fut = reader.read_to_string().init2(&mut stack, &mut heap);
+    let content = fut.await;
+    // ...
 }
 ```
 

@@ -34,3 +34,6 @@ pub mod r#priv {
     pub type PinRcSelf = crate::receiver::Pin<RcSelf>;
     pub type PinArcSelf = crate::receiver::Pin<ArcSelf>;
 }
+
+#[doc = include_str!("../README.md")]
+pub const _: () = {};
