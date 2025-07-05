@@ -10,11 +10,11 @@ trait Stream {
 
 trait DynStream {
     type Item;
-    fn next(&mut self) -> Fn!(&mut Self => dyn '_ + Future<Output = Option<Self::Item>>);
+    fn next(&mut self) -> Fn!(&'_ mut Self => dyn '_ + Future<Output = Option<Self::Item>>);
 }
 impl<T: Stream> DynStream for T {
     type Item = T::Item;
-    fn next(&mut self) -> Fn!(&mut Self => dyn '_ + Future<Output = Option<Self::Item>>) {
+    fn next(&mut self) -> Fn!(&'_ mut Self => dyn '_ + Future<Output = Option<Self::Item>>) {
         from_fn!(T::next, self)
     }
 }
