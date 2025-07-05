@@ -6,6 +6,7 @@ use crate::constructor::{Construct, Opaque, PinConstruct, Slot};
 use crate::receiver::Receiver;
 
 /// A constructor for the return type of functions.
+#[must_use = "constructor must be initialized"]
 pub struct Fn<Args, Ret: ?Sized> {
     layout: Layout,
     init: unsafe fn(Slot, Args) -> &mut Opaque<Ret>,

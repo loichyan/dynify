@@ -111,6 +111,7 @@ unsafe impl<T: PinConstruct> PinConstruct for &'_ mut Option<T> {
 unsafe impl<T: Construct> Construct for &'_ mut Option<T> {}
 
 /// A memory block used to store arbitrary objects.
+#[must_use = "slot must be consumed"]
 pub struct Slot<'a, T: ?Sized = Void>(NonNull<T>, PhantomData<&'a mut T>);
 impl<'a> Slot<'a> {
     /// Creates a new slot from the supplied pointer.
