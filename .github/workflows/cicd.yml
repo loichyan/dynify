@@ -3,8 +3,11 @@
 # - https://github.com/sharkdp/bat/blob/6fc5882/.github/workflows/CICD.yml
 name: CICD
 on:
-  push: { branches: [main] }
+  push:
+    branches: [main]
+    paths-ignore: ["CHANGELOG.md"]
   pull_request:
+    paths-ignore: ["CHANGELOG.md"]
 
 permissions:
   contents: read
