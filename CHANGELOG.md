@@ -14,7 +14,7 @@ noticeable to end-users since the last release. For developers, this project fol
 
 ### Added
 
-- (**breaking**) Always place breaking changes at the top.
+- (**BREAKING**) Always place breaking changes at the top.
 - Append other changes in chronological order under the relevant subsections.
 
 ### Changed
@@ -36,11 +36,18 @@ noticeable to end-users since the last release. For developers, this project fol
 
 - Implement `Emplace` for `&mut MaybeUninit<[u8; N]>` ([#2]).
 
+### Changed
+
+- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` (#PRNUM).
+
 ### Removed
 
 - (**BREAKING**) Remove `Emplace` implementations for `&mut [u8; N]`, `&mut [u8]` and `&mut Vec<u8>`
   ([#2]).
 
+- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` (#PRNUM).
+
+[#PRNUM]: https://github.com/loichyan/dynify/pull/PRNUM
 [#2]: https://github.com/loichyan/dynify/pull/2
 
 ## [0.0.1] - 2025-07-05

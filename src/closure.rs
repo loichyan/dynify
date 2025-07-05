@@ -5,6 +5,7 @@ use core::ptr::NonNull;
 use crate::constructor::{Construct, Opaque, PinConstruct, Slot};
 
 /// The constructor created by [`from_closure`].
+#[must_use = "constructor must be initialized"]
 pub struct Closure<T, F>(F, PhantomData<T>);
 // SAFETY:
 // - A typed slot only accepts writes of objects of type `T`, ensuring that the

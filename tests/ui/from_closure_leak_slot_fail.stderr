@@ -3,7 +3,7 @@ error[E0521]: borrowed data escapes outside of closure
   |
 2 |     let mut slot_leaked = None;
   |         --------------- `slot_leaked` declared here, outside of the closure body
-3 |     dynify::from_closure::<(), (), _>(|slot| {
-  |                                        ---- `slot` is a reference that is only valid in the closure body
+3 |     let _ = dynify::from_closure::<(), (), _>(|slot| {
+  |                                                ---- `slot` is a reference that is only valid in the closure body
 4 |         slot_leaked = Some(slot);
   |         ^^^^^^^^^^^^^^^^^^^^^^^^ `slot` escapes the closure body here
