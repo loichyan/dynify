@@ -155,3 +155,15 @@ fn default_pin_emplace() {
     let out = Boxed.pin_emplace(init).unwrap();
     assert_eq!(out.downcast_ref::<[u8; 16]>(), Some(&inp));
 }
+
+#[test]
+#[should_panic = "just panic"]
+fn clean_up_boxed_zst_on_panic() {
+    let _ = from_closure::<(), (), _>(|_| panic!("just panic")).boxed();
+}
+
+#[test]
+#[should_panic = "just panic"]
+fn clean_up_boxed_on_panic() {
+    let _ = from_closure::<usize, usize, _>(|_| panic!("just panic")).boxed();
+}
