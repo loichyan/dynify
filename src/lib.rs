@@ -16,11 +16,15 @@ mod container;
 mod function;
 mod receiver;
 
-pub use self::closure::from_closure;
-pub use self::constructor::{Construct, Dynify, Opaque, PinConstruct, PinDynify, Slot};
+#[doc(inline)]
 #[cfg(feature = "alloc")]
 pub use self::container::Boxed;
-pub use self::container::{Buffered, Emplace, OutOfCapacity, PinEmplace};
+#[doc(inline)]
+pub use self::{
+    closure::from_closure,
+    constructor::{Construct, Dynify, Opaque, PinConstruct, PinDynify, Slot},
+    container::{Buffered, Emplace, OutOfCapacity, PinEmplace},
+};
 
 /// NON-PUBLIC API
 #[doc(hidden)]
