@@ -25,12 +25,17 @@ pub use self::container::{Buffered, Emplace, OutOfCapacity, PinEmplace};
 #[doc(hidden)]
 pub mod r#priv {
     pub use crate::function::{from_bare_fn, from_method, Fn};
-    pub use crate::receiver::{ArcSelf, BoxSelf, RcSelf, Receiver, RefMutSelf, RefSelf};
+    #[cfg(feature = "alloc")]
+    pub use crate::receiver::{ArcSelf, BoxSelf, RcSelf};
+    pub use crate::receiver::{Receiver, RefMutSelf, RefSelf};
 
     pub type PinRefSelf<'a> = crate::receiver::Pin<RefSelf<'a>>;
     pub type PinRefMutSelf<'a> = crate::receiver::Pin<RefMutSelf<'a>>;
+    #[cfg(feature = "alloc")]
     pub type PinBoxSelf = crate::receiver::Pin<BoxSelf>;
+    #[cfg(feature = "alloc")]
     pub type PinRcSelf = crate::receiver::Pin<RcSelf>;
+    #[cfg(feature = "alloc")]
     pub type PinArcSelf = crate::receiver::Pin<ArcSelf>;
 }
 

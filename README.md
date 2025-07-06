@@ -9,10 +9,10 @@ Add dyn compatible variant to your async trait with dynify!
 
 ## ✨ Overview
 
-`dynify` implements partial features of the experimental
+dynify implements partial features of the experimental
 [in-place initialization proposal](https://github.com/rust-lang/lang-team/issues/336) in stable
 Rust, along with a set of safe APIs for creating in-place constructors to initialize trait objects.
-Here’s a quick example of how to use `dynify`:
+Here’s a quick example of how to use dynify:
 
 ```rust
 use dynify::{from_fn, Dynify, Fn};
