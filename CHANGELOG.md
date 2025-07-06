@@ -50,7 +50,6 @@ prevent further issues. Consequently, it includes few changes.
 
 - (**BREAKING**) Remove `Emplace` implementations for `&mut [u8; N]`, `&mut [u8]` and `&mut Vec<u8>`
   ([#2]).
-- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` ([#4]).
 
 ### Fixed
 
