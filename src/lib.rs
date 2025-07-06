@@ -1,5 +1,6 @@
 #![doc = include_str!("lib.md") ]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(test), no_std)]
 #![allow(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::unsound_collection_transmute)]

@@ -14,12 +14,20 @@ categories = ["asynchronous", "no-std", "rust-patterns"]
 [features]
 default = ["alloc"]
 alloc = []
+smallvec = ["dep:smallvec"]
+
+[dependencies]
+smallvec = { version = "1", optional = true }
 
 [dev-dependencies]
 fastrand = "2.3.0"
 pollster = { version = "0.4.0", features = ["macro"] }
 rstest = { version = "0.25.0", default-features = false }
 trybuild = "1.0.105"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints.rust]
 unexpected_cfgs.level = "warn"

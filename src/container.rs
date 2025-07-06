@@ -205,7 +205,6 @@ impl fmt::Display for OutOfCapacity {
     }
 }
 
-// Normal buffer
 unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut MaybeUninit<[u8; N]> {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
@@ -277,8 +276,8 @@ mod __alloc {
 
     /// A unit type to perform constructions in [`Box`].
     #[derive(Debug)]
+    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     pub struct Boxed;
-    // Normal box
     unsafe impl<T: ?Sized> Emplace<T> for Boxed {
         type Ptr = Box<T>;
         type Err = Infallible;
@@ -319,8 +318,8 @@ mod __alloc {
         Slot::new_unchecked(ptr)
     }
 
-    // Normal vector
     // TODO: pinned vector?
+    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut Vec<MaybeUninit<u8>> {
         type Ptr = Buffered<'a, T>;
         type Err = Infallible;
@@ -360,6 +359,61 @@ mod __alloc {
 }
 #[cfg(feature = "alloc")]
 pub use __alloc::*;
+
+#[cfg(feature = "smallvec")]
+mod __smallvec {
+    use core::convert::Infallible;
+    use core::mem::MaybeUninit;
+
+    use smallvec::{Array, SmallVec};
+
+    use super::*;
+
+    #[cfg_attr(docsrs, doc(cfg(feature = "smallvec")))]
+    unsafe impl<'a, A, T> Emplace<T> for &'a mut SmallVec<A>
+    where
+        A: Array<Item = MaybeUninit<u8>>,
+        T: ?Sized,
+    {
+        type Ptr = Buffered<'a, T>;
+        type Err = Infallible;
+
+        fn emplace<C>(self, constructor: C) -> Result<Self::Ptr, Self::Err>
+        where
+            C: Construct<Object = T>,
+        {
+            unsafe {
+                let layout = constructor.layout();
+                let slot = small_vec_emplace(self, layout);
+                let ptr = slot.as_ptr();
+
+                let init = constructor.construct(slot);
+                validate_slot(ptr, layout, init);
+                Ok(Buffered::from_raw(init))
+            }
+        }
+    }
+    unsafe fn small_vec_emplace<A>(vec: &mut SmallVec<A>, layout: Layout) -> Slot<'_>
+    where
+        A: Array<Item = MaybeUninit<u8>>,
+    {
+        if layout.size() == 0 {
+            return dangling_slot(layout);
+        }
+
+        let mut buf = vec.as_mut_ptr();
+        let mut align_offset = buf.align_offset(layout.align());
+        let total_bytes = align_offset + layout.size();
+
+        if total_bytes > vec.capacity() {
+            vec.reserve(layout.size() + layout.align() - vec.len());
+            buf = vec.as_mut_ptr();
+            align_offset = buf.align_offset(layout.align());
+        }
+        let slot = buf.add(align_offset).cast::<u8>();
+        Slot::new_unchecked(NonNull::new_unchecked(slot))
+    }
+}
 
 // TODO: is it possible to use strict provenance APIs?
 unsafe fn dangling_slot<'a>(layout: Layout) -> Slot<'a> {
