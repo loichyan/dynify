@@ -131,5 +131,5 @@ it's better to go with the battle tested async-trait.
 
 - **alloc**: Enable container implementations for types that require heap allocation such as `Box`
   and `Vec`.
-- **smallvec**: Enable container implementations for `SmallVec`, is a drop-in replacement for
+- **smallvec**: Enable container implementations for `SmallVec`, a drop-in replacement for
   `[u8; N] + Vec<u8>`.
