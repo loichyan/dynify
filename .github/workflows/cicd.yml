@@ -89,8 +89,14 @@ jobs:
       - name: Check | Clippy
         run: cargo clippy --locked
 
+      - name: Check | Clippy without default features
+        run: cargo clippy --locked --no-default-features
+
+      - name: Check | Clippy with all features
+        run: cargo clippy --locked --all-features
+
       - name: Check | Test suite
-        run: cargo test --locked
+        run: cargo test --locked --all-features
 
       - name: Check | Build
         run: cargo build --locked
