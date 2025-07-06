@@ -124,7 +124,7 @@ jobs:
           release_tag: ${{ steps.configure.outputs.tag }}
           release_body: ${{ github.event.pull_request.body }}
         run: |
-          if gh release view --json="" "$release_tag" &>/dev/null; then
+          if gh release view "$release_tag" &>/dev/null; then
             echo "update existed release $release_tag"
             command=edit
           else

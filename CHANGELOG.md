@@ -32,6 +32,11 @@ noticeable to end-users since the last release. For developers, this project fol
 
 ## [Unreleased]
 
+## [0.1.0] - 2025-07-06
+
+The main purpose of this release is to address unsoundness and introduce breaking changes early to
+prevent further issues. Consequently, it includes few changes.
+
 ### Added
 
 - Implement `Emplace` for `&mut MaybeUninit<[u8; N]>` ([#2]).
@@ -45,8 +50,6 @@ noticeable to end-users since the last release. For developers, this project fol
 
 - (**BREAKING**) Remove `Emplace` implementations for `&mut [u8; N]`, `&mut [u8]` and `&mut Vec<u8>`
   ([#2]).
-
-- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` ([#4]).
 
 ### Fixed
 
@@ -62,5 +65,6 @@ noticeable to end-users since the last release. For developers, this project fol
 🎉 Initial release. Check out [README](https://github.com/loichyan/dynify/blob/v0.0.1/README.md) for
 more details.
 
-[Unreleased]: https://github.com/loichyan/dynify/compare/v0.0.1..HEAD
+[Unreleased]: https://github.com/loichyan/dynify/compare/v0.1.0..HEAD
+[0.1.0]: https://github.com/loichyan/dynify/releases/tag/v0.1.0
 [0.0.1]: https://github.com/loichyan/dynify/releases/tag/v0.0.1
