@@ -38,14 +38,14 @@ noticeable to end-users since the last release. For developers, this project fol
 
 ### Changed
 
-- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` (#4).
+- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` ([#4]).
 
 ### Removed
 
 - (**BREAKING**) Remove `Emplace` implementations for `&mut [u8; N]`, `&mut [u8]` and `&mut Vec<u8>`
   ([#2]).
 
-- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` (#4).
+- Add `#[must_use]` for `Slot`, `from_fn!()` and `from_closure()` ([#4]).
 
 ### Fixed
 
