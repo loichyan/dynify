@@ -49,7 +49,7 @@ noticeable to end-users since the last release. For developers, this project fol
 
 ### Fixed
 
-- Make the compilation passes when `default-features = false` (#5).
+- Make the compilation passes when `default-features = false` ([#5]).
 
 [#5]: https://github.com/loichyan/dynify/pull/5
 [#4]: https://github.com/loichyan/dynify/pull/4
