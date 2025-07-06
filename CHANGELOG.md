@@ -35,6 +35,7 @@ noticeable to end-users since the last release. For developers, this project fol
 ### Added
 
 - Implement `Emplace` for `&mut MaybeUninit<[u8; N]>` ([#2]).
+- Implement `Emplace` for `SmallVec` ([#6]).
 
 ### Changed
 
@@ -51,6 +52,7 @@ noticeable to end-users since the last release. For developers, this project fol
 
 - Make the compilation passes when `default-features = false` ([#5]).
 
+[#6]: https://github.com/loichyan/dynify/pull/6
 [#5]: https://github.com/loichyan/dynify/pull/5
 [#4]: https://github.com/loichyan/dynify/pull/4
 [#2]: https://github.com/loichyan/dynify/pull/2

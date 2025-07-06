@@ -173,9 +173,9 @@ macro_rules! __from_fn {
                 ($self, $($args,)*),
                 |slot, (this, $($args,)*)| {
                     let this = $crate::r#priv::Receiver::unseal(this);
-                    let ret = ($f)(this, $($args,)*);
-                    let ptr = slot.cast().write(ret);
-                    ptr as &mut $crate::Opaque::<_>
+                    let return_value = ($f)(this, $($args,)*);
+                    let object = slot.cast().write(return_value);
+                    object as &mut $crate::Opaque::<_>
                 },
             )
         }
@@ -187,9 +187,9 @@ macro_rules! __from_fn {
                 |_| $f,
                 ($($args,)*),
                 |slot, ($($args,)*)| {
-                    let ret = ($f)($($args,)*);
-                    let ptr = slot.cast().write(ret);
-                    ptr as &mut $crate::Opaque::<_>
+                    let return_value = ($f)($($args,)*);
+                    let object = slot.cast().write(return_value);
+                    object as &mut $crate::Opaque::<_>
                 },
             )
         }

@@ -126,3 +126,10 @@ async fn process_stream(stream: &mut dyn DynStream<Item = char>) {
 
 Nevertheless, the differences can be rather trivial in many cases. If you don't have these concerns,
 it's better to go with the battle tested async-trait.
+
+## Features
+
+- **alloc**: Enable container implementations for types that require heap allocation such as `Box`
+  and `Vec`.
+- **smallvec**: Enable container implementations for `SmallVec`, a drop-in replacement for
+  `[u8; N] + Vec<u8>`.

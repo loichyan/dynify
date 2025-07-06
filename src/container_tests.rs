@@ -3,6 +3,8 @@ use std::marker::PhantomPinned;
 use std::pin::pin;
 
 use rstest::rstest;
+#[cfg(feature = "smallvec")]
+use smallvec::SmallVec;
 
 use super::*;
 use crate::utils::*;
@@ -42,6 +44,8 @@ where
 #[rstest]
 #[case(Boxed)]
 #[case(&mut Vec::<MaybeUninit<u8>>::new())]
+#[cfg_attr(feature = "smallvec", case(&mut SmallVec::<[MaybeUninit<u8>; 0]>::new()) )]
+#[cfg_attr(feature = "smallvec", case(&mut SmallVec::<[MaybeUninit<u8>; 12]>::new()) )]
 fn allocated_containers(#[case] c: impl DebugEmplace) {
     let inp = randarr::<16>();
     let init = from_closure(|slot| slot.write(inp) as &mut OpqAny);
@@ -54,6 +58,8 @@ fn allocated_containers(#[case] c: impl DebugEmplace) {
 #[case(&mut [MaybeUninit::new(0u8); 64])]
 #[case(&mut [MaybeUninit::uninit(); 64] as &mut [MaybeUninit<u8>])]
 #[case(&mut Vec::<MaybeUninit<u8>>::new())]
+#[cfg_attr(feature = "smallvec", case(&mut SmallVec::<[MaybeUninit<u8>; 0]>::new()) )]
+#[cfg_attr(feature = "smallvec", case(&mut SmallVec::<[MaybeUninit<u8>; 12]>::new()) )]
 fn init_object_of_random_layout(#[case] c: impl DebugEmplace) {
     macro_rules! select_layout {
         ($rand:ident, $($align:literal),+) => {$(
@@ -80,6 +86,8 @@ fn init_object_of_random_layout(#[case] c: impl DebugEmplace) {
 #[case(&mut Vec::<MaybeUninit<u8>>::new())]
 #[case(&mut [] as &mut [MaybeUninit<u8>])]
 #[case(&mut [] as &mut [MaybeUninit<u8>; 0])]
+#[cfg_attr(feature = "smallvec", case(&mut SmallVec::<[MaybeUninit<u8>; 0]>::new()) )]
+#[cfg_attr(feature = "smallvec", case(&mut SmallVec::<[MaybeUninit<u8>; 12]>::new()) )]
 fn never_fail_on_zst(#[case] c: impl DebugEmplace) {
     #[repr(align(4096))]
     struct Zst;
@@ -94,6 +102,8 @@ fn never_fail_on_zst(#[case] c: impl DebugEmplace) {
 #[case(&mut newstk::<24>())]
 #[case(&mut newstk::<24>() as &mut [MaybeUninit<u8>])]
 #[case(&mut Vec::<MaybeUninit<u8>>::new())]
+#[cfg_attr(feature = "smallvec", case(&mut SmallVec::<[MaybeUninit<u8>; 0]>::new()) )]
+#[cfg_attr(feature = "smallvec", case(&mut SmallVec::<[MaybeUninit<u8>; 12]>::new()) )]
 fn drop_buffered<'a>(#[case] c: impl 'a + DebugEmplace<Ptr = Buffered<'a, dyn Any>>) {
     let init = from_closure(|slot| slot.write(DropCounter) as &mut OpqAny);
     let out = c.emplace(init).unwrap();
