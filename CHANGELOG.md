@@ -32,6 +32,8 @@ noticeable to end-users since the last release. For developers, this project fol
 
 ## [Unreleased]
 
+## [0.1.0] - 2025-07-06
+
 ### Added
 
 - Implement `Emplace` for `&mut MaybeUninit<[u8; N]>` ([#2]).
@@ -62,5 +64,6 @@ noticeable to end-users since the last release. For developers, this project fol
 🎉 Initial release. Check out [README](https://github.com/loichyan/dynify/blob/v0.0.1/README.md) for
 more details.
 
-[Unreleased]: https://github.com/loichyan/dynify/compare/v0.0.1..HEAD
+[Unreleased]: https://github.com/loichyan/dynify/compare/v0.1.0..HEAD
+[0.1.0]: https://github.com/loichyan/dynify/releases/tag/v0.1.0
 [0.0.1]: https://github.com/loichyan/dynify/releases/tag/v0.0.1
