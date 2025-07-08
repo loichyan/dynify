@@ -4,6 +4,7 @@
 [![docs.rs](https://img.shields.io/docsrs/dynify)](https://docs.rs/dynify)
 [![msrv](https://img.shields.io/crates/msrv/dynify)](https://crates.io/crates/dynify)
 [![build status](https://img.shields.io/github/actions/workflow/status/loichyan/dynify/cicd.yml)](https://github.com/loichyan/dynify/actions)
+[![codecov](https://img.shields.io/codecov/c/gh/loichyan/dynify)](https://codecov.io/gh/loichyan/dynify)
 
 Add dyn compatible variant to your async trait with dynify!
 

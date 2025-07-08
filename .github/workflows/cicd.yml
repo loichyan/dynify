@@ -65,11 +65,15 @@ jobs:
         uses: dtolnay/rust-toolchain@stable # Avoid frequent cache updates
         with:
           toolchain: ${{ matrix.toolchain }}
-          components: clippy,rustfmt
+          components: ${{ format('clippy,rustfmt{}', matrix.toolchain == 'nightly' && ',miri' || '') }}
       - run: rustup override set '${{ steps.setup-rust.outputs.name }}' # Override rust-toolchain.toml
 
       - name: Setup | Install cargo-audit
         uses: taiki-e/install-action@cargo-audit
+
+      - name: Setup | Install cargo-llvm-cov
+        if: matrix.toolchain == 'nightly'
+        uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Setup | Rust cache
         uses: Swatinem/rust-cache@v2
@@ -87,23 +91,39 @@ jobs:
         run: cargo fmt --check
 
       - name: Check | Clippy
-        run: cargo clippy --locked
+        run: cargo clippy --workspace
 
       - name: Check | Clippy without default features
-        run: cargo clippy --locked --no-default-features
+        run: cargo clippy --workspace --no-default-features
 
       - name: Check | Clippy with all features
-        run: cargo clippy --locked --all-features
-
-      - name: Check | Test suite
-        run: cargo test --locked --all-features
+        run: cargo clippy --workspace --all-features
 
       - name: Check | Build
-        run: cargo build --locked
+        run: cargo build --workspace
+
+      - name: Check | Test suite
+        run: cargo test --workspace --all-features
+
+      - name: Check | Miri
+        if: matrix.toolchain == 'nightly'
+        run: cargo miri test --workspace --all-features
+
+      - name: Check | Coverage
+        if: matrix.toolchain == 'nightly'
+        run: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
 
       - name: Check | Rustdoc
         if: matrix.toolchain == 'nightly'
         run: RUSTDOCFLAGS='--cfg docsrs' cargo doc --all-features --no-deps
+
+      - name: Post Check | Upload coverage to Codecov
+        if: matrix.toolchain == 'nightly'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          fail_ci_if_error: true
 
   release:
     name: Create GitHub release
