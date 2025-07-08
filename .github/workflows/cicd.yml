@@ -103,7 +103,7 @@ jobs:
 
       - name: Check | Rustdoc
         if: matrix.toolchain == 'nightly'
-        run: RUSTDOCFLAGS='--cfg docsrs' cargo doc --all-features
+        run: RUSTDOCFLAGS='--cfg docsrs' cargo doc --all-features --no-deps
 
   release:
     name: Create GitHub release
