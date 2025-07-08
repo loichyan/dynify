@@ -275,9 +275,11 @@ mod __alloc {
     use super::*;
 
     /// A unit type to perform constructions in [`Box`].
-    #[derive(Debug)]
     #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+    #[derive(Debug)]
     pub struct Boxed;
+
+    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     unsafe impl<T: ?Sized> Emplace<T> for Boxed {
         type Ptr = Box<T>;
         type Err = Infallible;
@@ -307,6 +309,7 @@ mod __alloc {
         }
     }
     // Pinned box
+    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     unsafe impl<T: ?Sized> PinEmplace<T> for Boxed {}
     unsafe fn box_emlace(layout: Layout) -> Slot<'static> {
         if layout.size() == 0 {
