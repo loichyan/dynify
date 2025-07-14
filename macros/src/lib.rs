@@ -1,7 +1,10 @@
 use proc_macro::TokenStream;
 
-mod dynify;
+#[macro_use]
 mod utils;
+mod dynify;
+mod lifetime;
+mod receiver;
 
 #[proc_macro_attribute]
 pub fn dynify(attr: TokenStream, input: TokenStream) -> TokenStream {
