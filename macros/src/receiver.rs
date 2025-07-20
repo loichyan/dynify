@@ -15,7 +15,7 @@ pub(crate) fn infer_receiver(recv: &syn::Receiver) -> Option<Ident> {
         };
     }
 
-    let ty = as_variant!(Type::Path, &*recv.ty)
+    let ty = as_variant!(&*recv.ty, Type::Path)
         .map(|ty| &ty.path)
         // Extract the inner type of `Pin<T>`
         .filter(|path| is_std(path, "pin", "Pin"))

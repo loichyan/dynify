@@ -7,14 +7,18 @@ use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
 use syn::{parse_quote, parse_quote_spanned, visit_mut, Error, Ident, Lifetime, Result, Token};
 
-pub(crate) fn inject_output_lifetime(sig: &mut syn::Signature, source: &Lifetime) -> Result<()> {
+pub(crate) fn inject_output_lifetime(
+    trait_generics: &syn::Generics,
+    sig: &mut syn::Signature,
+    source: &Lifetime,
+) -> Result<()> {
     // Collect lifetimes in the signature.
     let mut explicit = BTreeSet::new();
     let mut elided = Vec::new(); // reused across iterations
     for arg in sig.inputs.iter_mut() {
         let basename = match arg {
             syn::FnArg::Receiver(recv) => Ident::new("this", recv.self_token.span),
-            syn::FnArg::Typed(a) => as_variant!(syn::Pat::Ident, &*a.pat)
+            syn::FnArg::Typed(a) => as_variant!(&*a.pat, syn::Pat::Ident)
                 .map(|p| &p.ident)
                 .ok_or_else(|| Error::new(a.span(), "typed argument must be a valid identifier"))?
                 .clone(),
@@ -48,14 +52,23 @@ pub(crate) fn inject_output_lifetime(sig: &mut syn::Signature, source: &Lifetime
     sig.generics.params.extend(elided_params);
 
     // Ensure every lifetime outlives the output lifetime
-    for lt in explicit.iter().chain(elided.iter()) {
+    for lt in explicit
+        .iter()
+        .chain(elided.iter())
+        .chain(trait_generics.lifetimes().map(|p| &p.lifetime))
+    {
         default_where_clause(&mut sig.generics.where_clause)
             .predicates
             .push(parse_quote_spanned! (lt.span() => #lt: #source));
     }
 
     // Ensure every generic type outlives the output lifetime
-    for param in sig.generics.params.iter() {
+    for param in sig
+        .generics
+        .params
+        .iter()
+        .chain(trait_generics.params.iter())
+    {
         let syn::GenericParam::Type(ty) = param else {
             continue;
         };

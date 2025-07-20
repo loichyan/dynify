@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 
 macro_rules! as_variant {
-    ($variant:path, $val:expr) => {
+    ($val:expr, $variant:path $(,)?) => {
         match $val {
             $variant(val) => Some(val),
             _ => None,
@@ -49,7 +49,7 @@ pub(crate) fn is_std(path: &syn::Path, mod1: &str, ty: &str) -> bool {
 
 /// Extracts the first type generic argument.
 pub(crate) fn extract_inner_type(arg: &syn::PathArguments) -> Option<&syn::Type> {
-    let arg = as_variant!(syn::PathArguments::AngleBracketed, arg)?;
+    let arg = as_variant!(arg, syn::PathArguments::AngleBracketed)?;
     let first = arg.args.first()?;
-    as_variant!(syn::GenericArgument::Type, first)
+    as_variant!(first, syn::GenericArgument::Type)
 }
