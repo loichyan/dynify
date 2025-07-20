@@ -1,6 +1,6 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
-use syn::{parse_quote, Error, Lifetime, Result, ReturnType, Token, Type};
+use syn::{parse_quote, Error, Ident, Lifetime, Result, ReturnType, Token, Type};
 
 use crate::utils::*;
 
@@ -9,64 +9,91 @@ pub fn expand(
     input: proc_macro::TokenStream,
 ) -> Result<TokenStream> {
     let input = TokenStream::from(input);
-    let mut trait_def = syn::parse2::<syn::ItemTrait>(input.clone())?;
+    let mut dyn_trait = syn::parse2::<syn::ItemTrait>(input.clone())?;
     let mut trait_impl_items = TokenStream::new();
 
+    // TODO: customize name
     let trait_name = {
-        let dyn_name = format_ident!("Dyn{}", trait_def.ident);
-        std::mem::replace(&mut trait_def.ident, dyn_name)
+        let dyn_name = format_ident!("Dyn{}", dyn_trait.ident);
+        std::mem::replace(&mut dyn_trait.ident, dyn_name)
     };
     let impl_target = format_ident!("{}Implementor", trait_name);
 
-    for item in trait_def.items.iter_mut() {
+    let (_, ty_generics, where_clause) = dyn_trait.generics.split_for_impl();
+    for item in dyn_trait.items.iter_mut() {
         let syn::TraitItem::Fn(func) = item else {
+            // TODO: support non-function items
             return Err(Error::new_spanned(
                 item,
                 "non-function item is not supported yet",
             ));
         };
 
-        let transformed = transform_fn(&mut func.sig, false)?;
-        let fn_ident = &func.sig.ident;
-
-        let args = func.sig.inputs.iter().map(|arg| {
-            quote_with(move |tokens| match arg {
-                syn::FnArg::Receiver(r) => r.self_token.to_tokens(tokens),
-                syn::FnArg::Typed(t) => t.pat.to_tokens(tokens),
-            })
-        });
-        let impl_body = match transformed {
-            TransformResult::Noop if func.sig.asyncness.is_some() => {
-                quote!(#impl_target::#fn_ident(#(#args,)*).await)
-            },
-            TransformResult::Noop => {
-                quote!(#impl_target::#fn_ident(#(#args,)*))
-            },
-            // TODO: expand macro calls
-            TransformResult::Function => {
-                quote!(::dynify::from_fn!(#impl_target::#fn_ident, #(#args,)*))
-            },
-            TransformResult::Method => {
-                quote!(::dynify::from_fn!(#impl_target::#fn_ident, #(#args,)*))
-            },
-        };
+        let transformed = transform_fn(&dyn_trait.generics, &mut func.sig, false)?;
 
         let sig = &func.sig;
+        let impl_body = quote_transformed_body(transformed, &impl_target, sig);
+
+        // TODO: support `#[dynify(skip)]`
         let attrs_outer = quote_outer(&func.attrs);
         let attrs_inner = quote_inner(&func.attrs);
         trait_impl_items.extend(quote!(#attrs_outer #sig { #attrs_inner #impl_body }));
     }
 
-    // TODO: generate dynified as a variant
-    let dyn_trait_name = &trait_def.ident;
+    let impl_generics = quote_impl_generics(&dyn_trait.generics);
+    let dyn_trait_name = &dyn_trait.ident;
     Ok(quote!(
         #input
-        #trait_def
-        // TODO: handle trait generics
-        impl<#impl_target: #trait_name> #dyn_trait_name for #impl_target {
+        #dyn_trait
+        impl<#impl_generics #impl_target: #trait_name #ty_generics>
+        #dyn_trait_name #ty_generics for #impl_target #where_clause {
             #trait_impl_items
         }
     ))
+}
+
+fn quote_transformed_body(
+    transformed: TransformResult,
+    target: &Ident,
+    sig: &syn::Signature,
+) -> impl ToTokens {
+    let ident = &sig.ident;
+    let args = sig.inputs.iter().map(|arg| {
+        quote_with(move |tokens| match arg {
+            syn::FnArg::Receiver(r) => r.self_token.to_tokens(tokens),
+            syn::FnArg::Typed(t) => t.pat.to_tokens(tokens),
+        })
+    });
+    match transformed {
+        TransformResult::Noop if sig.asyncness.is_some() => {
+            quote!(#target::#ident(#(#args,)*).await)
+        },
+        TransformResult::Noop => {
+            quote!(#target::#ident(#(#args,)*))
+        },
+        // TODO: expand macro calls
+        TransformResult::Function => {
+            quote!(::dynify::from_fn!(#target::#ident, #(#args,)*))
+        },
+        TransformResult::Method => {
+            quote!(::dynify::from_fn!(#target::#ident, #(#args,)*))
+        },
+    }
+}
+
+fn quote_impl_generics(generics: &syn::Generics) -> impl '_ + ToTokens {
+    quote_with(move |tokens| {
+        let is_lifetime = |p: &syn::GenericParam| matches!(p, syn::GenericParam::Lifetime(_));
+        generics
+            .params
+            .pairs()
+            .filter(|p| is_lifetime(p.value()))
+            .chain(generics.params.pairs().filter(|p| !is_lifetime(p.value())))
+            .for_each(|p| {
+                p.value().to_tokens(tokens);
+                p.punct().map(|p| **p).unwrap_or_default().to_tokens(tokens);
+            });
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -78,7 +105,11 @@ enum TransformResult {
 
 /// Transforms the supplied function into a dynified one, returning `true` only
 /// if the transformation is successful.
-fn transform_fn(sig: &mut syn::Signature, force: bool) -> Result<TransformResult> {
+fn transform_fn(
+    trait_generics: &syn::Generics,
+    sig: &mut syn::Signature,
+    force: bool,
+) -> Result<TransformResult> {
     let span = sig.ident.span();
 
     if sig.asyncness.is_none() {
@@ -101,7 +132,7 @@ fn transform_fn(sig: &mut syn::Signature, force: bool) -> Result<TransformResult
         .generics
         .params
         .iter()
-        .map_while(|p| as_variant!(syn::GenericParam::Lifetime, p))
+        .map_while(|p| as_variant!(p, syn::GenericParam::Lifetime))
         .find(|l| l.lifetime.ident == "dynify")
         .map(|l| l.lifetime.clone());
     // Otherwise, insert a new one to the signature.
@@ -110,7 +141,7 @@ fn transform_fn(sig: &mut syn::Signature, force: bool) -> Result<TransformResult
         sig.generics.params.push(parse_quote!(#lt));
         lt
     });
-    crate::lifetime::inject_output_lifetime(sig, &output_lifetime)?;
+    crate::lifetime::inject_output_lifetime(trait_generics, sig, &output_lifetime)?;
 
     // Infer the appropriate output type
     let input_types = {
@@ -120,7 +151,7 @@ fn transform_fn(sig: &mut syn::Signature, force: bool) -> Result<TransformResult
         let args = sig
             .inputs
             .iter()
-            .filter_map(|a| as_variant!(syn::FnArg::Typed, a).map(|t| Type::clone(&*t.ty)));
+            .filter_map(|a| as_variant!(a, syn::FnArg::Typed).map(|t| Type::clone(&*t.ty)));
         this.into_iter().chain(args)
     };
     let output_type = match &sig.output {
