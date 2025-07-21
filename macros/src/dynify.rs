@@ -2,6 +2,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use syn::{parse_quote, Error, Ident, Lifetime, Result, ReturnType, Token, Type};
 
+use crate::lifetime::TraitContext;
 use crate::utils::*;
 
 pub fn expand(
@@ -16,6 +17,7 @@ pub fn expand(
     // TODO: support non-trait items
     let dyn_trait_name = format_ident!("Dyn{}", dyn_trait.ident);
     let trait_name = std::mem::replace(&mut dyn_trait.ident, dyn_trait_name);
+    let dyn_trait_name = &dyn_trait.ident;
     let impl_target = format_ident!("{}Implementor", trait_name);
 
     let (_, ty_generics, where_clause) = dyn_trait.generics.split_for_impl();
@@ -48,7 +50,11 @@ pub fn expand(
                     = #impl_target::#ident #ty_generics #where_clause #semi_token)
             },
             syn::TraitItem::Fn(syn::TraitItemFn { attrs, sig, .. }) => {
-                let transformed = transform_fn(&dyn_trait.generics, sig, false)?;
+                let context = TraitContext {
+                    name: dyn_trait_name,
+                    generics: &dyn_trait.generics,
+                };
+                let transformed = transform_fn(&context, sig, false)?;
                 // TODO: support `#[dynify(skip)]`
                 let attrs_outer = attrs.outer();
                 let attrs_inner = attrs.inner();
@@ -61,7 +67,6 @@ pub fn expand(
     }
 
     let impl_generics = quote_impl_generics(&dyn_trait.generics);
-    let dyn_trait_name = &dyn_trait.ident;
     Ok(quote!(
         #input
         #dyn_trait
@@ -128,7 +133,7 @@ enum TransformResult {
 /// Transforms the supplied function into a dynified one, returning `true` only
 /// if the transformation is successful.
 fn transform_fn(
-    trait_generics: &syn::Generics,
+    context: &TraitContext,
     sig: &mut syn::Signature,
     force: bool,
 ) -> Result<TransformResult> {
@@ -163,7 +168,7 @@ fn transform_fn(
         sig.generics.params.push(parse_quote!(#lt));
         lt
     });
-    crate::lifetime::inject_output_lifetime(trait_generics, sig, &output_lifetime)?;
+    crate::lifetime::inject_output_lifetime(context, sig, &output_lifetime)?;
 
     // Infer the appropriate output type
     let input_types = {

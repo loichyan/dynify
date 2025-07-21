@@ -7,10 +7,15 @@ use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
 use syn::{parse_quote, parse_quote_spanned, visit_mut, Error, Ident, Lifetime, Result, Token};
 
+pub(crate) struct TraitContext<'a> {
+    pub name: &'a Ident,
+    pub generics: &'a syn::Generics,
+}
+
 pub(crate) fn inject_output_lifetime(
-    trait_generics: &syn::Generics,
+    context: &TraitContext,
     sig: &mut syn::Signature,
-    source: &Lifetime,
+    output_lifetime: &Lifetime,
 ) -> Result<()> {
     // Collect lifetimes in the signature.
     let mut explicit = BTreeMap::from_iter(
@@ -63,11 +68,11 @@ pub(crate) fn inject_output_lifetime(
         .filter(|(_, selected)| **selected)
         .map(|(lt, _)| lt)
         .chain(elided.iter())
-        .chain(trait_generics.lifetimes().map(|p| &p.lifetime))
+        .chain(context.generics.lifetimes().map(|p| &p.lifetime))
     {
         default_where_clause(&mut sig.generics.where_clause)
             .predicates
-            .push(parse_quote_spanned! (lt.span() => #lt: #source));
+            .push(parse_quote_spanned! (lt.span() => #lt: #output_lifetime));
     }
 
     // Ensure every generic type outlives the output lifetime
@@ -75,14 +80,21 @@ pub(crate) fn inject_output_lifetime(
         .generics
         .params
         .iter()
-        .chain(trait_generics.params.iter())
+        .chain(context.generics.params.iter())
     {
         let syn::GenericParam::Type(ty) = param else {
             continue;
         };
         default_where_clause(&mut sig.generics.where_clause)
             .predicates
-            .push(parse_quote_spanned!(ty.span() => #ty: #source));
+            .push(parse_quote_spanned!(ty.span() => #ty: #output_lifetime));
+    }
+
+    // Ensure `Self` outlives the output lifetime
+    if sig.receiver().is_some() {
+        default_where_clause(&mut sig.generics.where_clause)
+            .predicates
+            .push(parse_quote_spanned!(context.name.span() => Self: #output_lifetime));
     }
 
     Ok(())
