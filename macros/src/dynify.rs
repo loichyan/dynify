@@ -12,32 +12,52 @@ pub fn expand(
     let mut dyn_trait = syn::parse2::<syn::ItemTrait>(input.clone())?;
     let mut trait_impl_items = TokenStream::new();
 
-    // TODO: customize name
-    let trait_name = {
-        let dyn_name = format_ident!("Dyn{}", dyn_trait.ident);
-        std::mem::replace(&mut dyn_trait.ident, dyn_name)
-    };
+    // TODO: support name customization
+    // TODO: support non-trait items
+    let dyn_trait_name = format_ident!("Dyn{}", dyn_trait.ident);
+    let trait_name = std::mem::replace(&mut dyn_trait.ident, dyn_trait_name);
     let impl_target = format_ident!("{}Implementor", trait_name);
 
     let (_, ty_generics, where_clause) = dyn_trait.generics.split_for_impl();
     for item in dyn_trait.items.iter_mut() {
-        let syn::TraitItem::Fn(func) = item else {
-            // TODO: support non-function items
-            return Err(Error::new_spanned(
-                item,
-                "non-function item is not supported yet",
-            ));
+        let impl_item = match item {
+            syn::TraitItem::Const(syn::TraitItemConst {
+                attrs,
+                const_token,
+                ident,
+                colon_token,
+                ty,
+                semi_token,
+                ..
+            }) => {
+                let attrs = attrs.outer();
+                quote!(#(#attrs)* #const_token #ident #colon_token #ty
+                    = #impl_target::#ident #semi_token)
+            },
+            syn::TraitItem::Type(syn::TraitItemType {
+                attrs,
+                type_token,
+                ident,
+                generics,
+                semi_token,
+                ..
+            }) => {
+                let attrs = attrs.outer();
+                let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+                quote!(#(#attrs)* #type_token #ident #impl_generics
+                    = #impl_target::#ident #ty_generics #where_clause #semi_token)
+            },
+            syn::TraitItem::Fn(syn::TraitItemFn { attrs, sig, .. }) => {
+                let transformed = transform_fn(&dyn_trait.generics, sig, false)?;
+                // TODO: support `#[dynify(skip)]`
+                let attrs_outer = attrs.outer();
+                let attrs_inner = attrs.inner();
+                let impl_body = quote_transformed_body(transformed, &impl_target, sig);
+                quote!(#(#attrs_outer)* #sig { #(#attrs_inner)* #impl_body })
+            },
+            _ => continue,
         };
-
-        let transformed = transform_fn(&dyn_trait.generics, &mut func.sig, false)?;
-
-        let sig = &func.sig;
-        let impl_body = quote_transformed_body(transformed, &impl_target, sig);
-
-        // TODO: support `#[dynify(skip)]`
-        let attrs_outer = quote_outer(&func.attrs);
-        let attrs_inner = quote_inner(&func.attrs);
-        trait_impl_items.extend(quote!(#attrs_outer #sig { #attrs_inner #impl_body }));
+        trait_impl_items.extend(impl_item);
     }
 
     let impl_generics = quote_impl_generics(&dyn_trait.generics);
@@ -52,13 +72,14 @@ pub fn expand(
     ))
 }
 
+/// Generates implementation body for a transformed function.
 fn quote_transformed_body(
     transformed: TransformResult,
     target: &Ident,
     sig: &syn::Signature,
 ) -> impl ToTokens {
     let ident = &sig.ident;
-    let args = sig.inputs.iter().map(|arg| {
+    let arg_idents = sig.inputs.iter().map(|arg| {
         quote_with(move |tokens| match arg {
             syn::FnArg::Receiver(r) => r.self_token.to_tokens(tokens),
             syn::FnArg::Typed(t) => t.pat.to_tokens(tokens),
@@ -66,21 +87,22 @@ fn quote_transformed_body(
     });
     match transformed {
         TransformResult::Noop if sig.asyncness.is_some() => {
-            quote!(#target::#ident(#(#args,)*).await)
+            quote!(#target::#ident(#(#arg_idents,)*).await)
         },
         TransformResult::Noop => {
-            quote!(#target::#ident(#(#args,)*))
+            quote!(#target::#ident(#(#arg_idents,)*))
         },
         // TODO: expand macro calls
         TransformResult::Function => {
-            quote!(::dynify::from_fn!(#target::#ident, #(#args,)*))
+            quote!(::dynify::from_fn!(#target::#ident, #(#arg_idents,)*))
         },
         TransformResult::Method => {
-            quote!(::dynify::from_fn!(#target::#ident, #(#args,)*))
+            quote!(::dynify::from_fn!(#target::#ident, #(#arg_idents,)*))
         },
     }
 }
 
+/// Prints generics for implementation without angle brackets.
 fn quote_impl_generics(generics: &syn::Generics) -> impl '_ + ToTokens {
     quote_with(move |tokens| {
         let is_lifetime = |p: &syn::GenericParam| matches!(p, syn::GenericParam::Lifetime(_));
