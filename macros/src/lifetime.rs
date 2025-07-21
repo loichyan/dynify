@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use proc_macro2::Span;
 use quote::format_ident;
@@ -13,7 +13,13 @@ pub(crate) fn inject_output_lifetime(
     source: &Lifetime,
 ) -> Result<()> {
     // Collect lifetimes in the signature.
-    let mut explicit = BTreeSet::new();
+    let mut explicit = BTreeMap::from_iter(
+        sig.generics
+            .lifetimes()
+            // Ignore lifetimes with attributes such as `#[cfg]`.
+            .filter(|lt| lt.attrs.is_empty())
+            .map(|lt| (lt.lifetime.clone(), false)),
+    );
     let mut elided = Vec::new(); // reused across iterations
     for arg in sig.inputs.iter_mut() {
         let basename = match arg {
@@ -54,6 +60,8 @@ pub(crate) fn inject_output_lifetime(
     // Ensure every lifetime outlives the output lifetime
     for lt in explicit
         .iter()
+        .filter(|(_, selected)| **selected)
+        .map(|(lt, _)| lt)
         .chain(elided.iter())
         .chain(trait_generics.lifetimes().map(|p| &p.lifetime))
     {
@@ -82,7 +90,7 @@ pub(crate) fn inject_output_lifetime(
 
 struct LifetimeCollector<'a> {
     basename: &'a Ident,
-    explicit: &'a mut BTreeSet<Lifetime>,
+    explicit: &'a mut BTreeMap<Lifetime, bool>,
     elided: &'a mut Vec<Lifetime>,
     index: usize,
     state: Pass,
@@ -113,7 +121,10 @@ impl LifetimeCollector<'_> {
             Pass::First if lifetime.ident == "_" => *lifetime = self.next_lifetime(lifetime.span()),
             Pass::First => {
                 self.index += 1;
-                self.explicit.insert(lifetime.clone());
+                _ = self
+                    .explicit
+                    .get_mut(lifetime)
+                    .map(|selected| *selected = true);
             },
             // In second pass, we only need to update the first elided lifetime.
             Pass::Second if &lifetime.ident == self.basename => {
