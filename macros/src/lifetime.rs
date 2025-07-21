@@ -36,8 +36,8 @@ pub(crate) fn inject_output_lifetime(
         let first_index = coll.elided.len();
         coll.visit_fn_arg_mut(arg);
         // If more than one lifetime is found, we start the second pass to fix
-        // the first elided lifetime, appending an index to it.
-        if coll.elided.len() - first_index > 1 {
+        // the first elided lifetime, appending the missing index to it.
+        if coll.index > 1 && coll.elided[first_index].ident == basename {
             coll.state = Pass::Second;
             coll.index = first_index; // used to locate the first lifetime
             coll.visit_fn_arg_mut(arg);
