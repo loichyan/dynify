@@ -8,7 +8,6 @@ trait UserCommunication {
     async fn send_email(&self, email: &str, code: &str);
 }
 
-// TODO: implement a proc_macro for such boilerplates?
 trait DynUserCommunication {
     fn send_sms<'this, 'phone, 'code, 'ret>(
         &'this self,
