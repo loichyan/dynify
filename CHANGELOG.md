@@ -63,16 +63,16 @@ prevent further issues. Consequently, it includes few changes.
 
 - Make the compilation passes when `default-features = false` ([#5]).
 
-[#6]: https://github.com/loichyan/dynify/pull/6
-[#5]: https://github.com/loichyan/dynify/pull/5
-[#4]: https://github.com/loichyan/dynify/pull/4
 [#2]: https://github.com/loichyan/dynify/pull/2
+[#4]: https://github.com/loichyan/dynify/pull/4
+[#5]: https://github.com/loichyan/dynify/pull/5
+[#6]: https://github.com/loichyan/dynify/pull/6
 
 ## [0.0.1] - 2025-07-05
 
 🎉 Initial release. Check out [README](https://github.com/loichyan/dynify/blob/v0.0.1/README.md) for
 more details.
 
-[Unreleased]: https://github.com/loichyan/dynify/compare/v0.1.0..HEAD
-[0.1.0]: https://github.com/loichyan/dynify/releases/tag/v0.1.0
 [0.0.1]: https://github.com/loichyan/dynify/releases/tag/v0.0.1
+[0.1.0]: https://github.com/loichyan/dynify/releases/tag/v0.1.0
+[Unreleased]: https://github.com/loichyan/dynify/compare/v0.1.0..HEAD
