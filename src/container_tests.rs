@@ -191,15 +191,18 @@ where
     let init = from_closure(|slot| slot.write(data.clone()) as &mut Opaque<dyn Any>);
     let val = stack.emplace(init).unwrap();
     let val = val.downcast::<Impossbile>().err().unwrap();
-    assert_eq!(val.downcast().ok().as_deref(), Some(&data));
+    let val = val.downcast().ok().map(Buffered::into_inner);
+    assert_eq!(val, Some(data.clone()));
 
     let init = from_closure(|slot| slot.write(data.clone()) as &mut Opaque<dyn Any + Send>);
     let val = stack.emplace(init).unwrap();
     let val = val.downcast::<Impossbile>().err().unwrap();
-    assert_eq!(val.downcast().ok().as_deref(), Some(&data));
+    let val = val.downcast().ok().map(Buffered::into_inner);
+    assert_eq!(val, Some(data.clone()));
 
     let init = from_closure(|slot| slot.write(data.clone()) as &mut Opaque<dyn Any + Send + Sync>);
     let val = stack.emplace(init).unwrap();
     let val = val.downcast::<Impossbile>().err().unwrap();
-    assert_eq!(val.downcast().ok().as_deref(), Some(&data));
+    let val = val.downcast().ok().map(Buffered::into_inner);
+    assert_eq!(val, Some(data.clone()));
 }
