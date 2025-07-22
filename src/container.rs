@@ -1,4 +1,5 @@
 use core::alloc::Layout;
+use core::any::Any;
 use core::fmt;
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
@@ -141,6 +142,69 @@ impl<'a, T: ?Sized> Buffered<'a, T> {
             let this = Pin::into_inner_unchecked(self);
             Pin::new_unchecked(this)
         }
+    }
+}
+impl<'a> Buffered<'a, dyn Any> {
+    /// Attempts to downcast the pointer to a concrete type.
+    pub fn downcast<T: Any>(self) -> Result<Buffered<'a, T>, Self> {
+        if self.is::<T>() {
+            unsafe { Ok(self.downcast_unchecked()) }
+        } else {
+            Err(self)
+        }
+    }
+
+    /// Downcasts the box to a concrete type.
+    ///
+    /// For a safe alternative see [`downcast`](Self::downcast).
+    ///
+    /// # Safety
+    ///
+    /// The contained value must be of type `T`.
+    pub unsafe fn downcast_unchecked<T: Any>(self) -> Buffered<'a, T> {
+        Buffered::from_raw(self.into_raw().cast())
+    }
+}
+impl<'a> Buffered<'a, dyn Any + Send> {
+    /// Attempts to downcast the pointer to a concrete type.
+    pub fn downcast<T: Any>(self) -> Result<Buffered<'a, T>, Self> {
+        if self.is::<T>() {
+            unsafe { Ok(self.downcast_unchecked()) }
+        } else {
+            Err(self)
+        }
+    }
+
+    /// Downcasts the box to a concrete type.
+    ///
+    /// For a safe alternative see [`downcast`](Self::downcast).
+    ///
+    /// # Safety
+    ///
+    /// The contained value must be of type `T`.
+    pub unsafe fn downcast_unchecked<T: Any>(self) -> Buffered<'a, T> {
+        Buffered::from_raw(self.into_raw().cast())
+    }
+}
+impl<'a> Buffered<'a, dyn Any + Send + Sync> {
+    /// Attempts to downcast the pointer to a concrete type.
+    pub fn downcast<T: Any>(self) -> Result<Buffered<'a, T>, Self> {
+        if self.is::<T>() {
+            unsafe { Ok(self.downcast_unchecked()) }
+        } else {
+            Err(self)
+        }
+    }
+
+    /// Downcasts the box to a concrete type.
+    ///
+    /// For a safe alternative see [`downcast`](Self::downcast).
+    ///
+    /// # Safety
+    ///
+    /// The contained value must be of type `T`.
+    pub unsafe fn downcast_unchecked<T: Any>(self) -> Buffered<'a, T> {
+        Buffered::from_raw(self.into_raw().cast())
     }
 }
 
