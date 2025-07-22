@@ -144,6 +144,12 @@ impl<'a, T: ?Sized> Buffered<'a, T> {
         }
     }
 }
+impl<'a, T> Buffered<'a, T> {
+    /// Consumes this instance, returning the inner value.
+    pub fn into_inner(self) -> T {
+        unsafe { self.into_raw().read() }
+    }
+}
 impl<'a> Buffered<'a, dyn Any> {
     /// Attempts to downcast the pointer to a concrete type.
     pub fn downcast<T: Any>(self) -> Result<Buffered<'a, T>, Self> {
