@@ -8,7 +8,7 @@ use smallvec::SmallVec;
 
 use super::*;
 use crate::utils::*;
-use crate::{from_closure, Dynify};
+use crate::{from_closure, Dynify, Opaque};
 
 trait DebugEmplace: Emplace<dyn Any, Err = Self::__Err> {
     type __Err: std::fmt::Debug;
@@ -176,4 +176,30 @@ fn clean_up_boxed_zst_on_panic() {
 #[should_panic = "just panic"]
 fn clean_up_boxed_on_panic() {
     let _ = from_closure::<usize, usize, _>(|_| panic!("just panic")).boxed();
+}
+
+#[rstest]
+#[case(fastrand::i32(..))]
+#[case(randstr(16..32))]
+fn downcast_buffered<T>(#[case] data: T)
+where
+    T: Any + Clone + core::fmt::Debug + Eq + Send + Sync,
+{
+    struct Impossbile;
+    let mut stack = newstk::<32>();
+
+    let init = from_closure(|slot| slot.write(data.clone()) as &mut Opaque<dyn Any>);
+    let val = stack.emplace(init).unwrap();
+    let val = val.downcast::<Impossbile>().err().unwrap();
+    assert_eq!(val.downcast().ok().as_deref(), Some(&data));
+
+    let init = from_closure(|slot| slot.write(data.clone()) as &mut Opaque<dyn Any + Send>);
+    let val = stack.emplace(init).unwrap();
+    let val = val.downcast::<Impossbile>().err().unwrap();
+    assert_eq!(val.downcast().ok().as_deref(), Some(&data));
+
+    let init = from_closure(|slot| slot.write(data.clone()) as &mut Opaque<dyn Any + Send + Sync>);
+    let val = stack.emplace(init).unwrap();
+    let val = val.downcast::<Impossbile>().err().unwrap();
+    assert_eq!(val.downcast().ok().as_deref(), Some(&data));
 }
