@@ -32,6 +32,12 @@ noticeable to end-users since the last release. For developers, this project fol
 
 ## [Unreleased]
 
+### Added
+
+- Support downcasting a `Buffered` pointer (#10).
+
+[#10]: https://github.com/loichyan/dynify/pull/10
+
 ## [0.1.0] - 2025-07-06
 
 The main purpose of this release is to address unsoundness and introduce breaking changes early to
