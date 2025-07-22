@@ -137,19 +137,18 @@ fn transform_fn(
     sig: &mut syn::Signature,
     force: bool,
 ) -> Result<TransformResult> {
-    let span = sig.ident.span();
-
-    if sig.asyncness.is_none() {
-        // TODO: support `fn() -> impl Trait`
-        if matches!(&sig.output, ReturnType::Type(_, t) if matches!(**t, Type::ImplTrait(_) )) {
-            return Err(Error::new(span, "`impl Trait` is not supported yet"));
-        }
+    if sig.asyncness.is_none() && get_impl_type(&sig.output).is_none() {
         return Ok(TransformResult::Noop);
     }
 
     let sealed_recv = match sig.receiver().map(crate::receiver::infer_receiver) {
         Some(Some(r)) => Some(r),
-        Some(None) => return Err(Error::new(span, "cannot determine receiver type")),
+        Some(None) => {
+            return Err(Error::new(
+                sig.ident.span(),
+                "cannot determine receiver type",
+            ))
+        },
         None if force => None,
         None => return Ok(TransformResult::Noop),
     };
@@ -184,16 +183,32 @@ fn transform_fn(
     let output_type = match &sig.output {
         ReturnType::Default => ReturnType::Type(
             <Token![->]>::default(),
-            parse_quote!(
-                ::dynify::r#priv::Fn<(#(#input_types,)*), dyn #output_lifetime + ::core::future::Future<Output = ()>>
-            ),
+            parse_quote!(::dynify::r#priv::Fn<
+                (#(#input_types,)*),
+                dyn #output_lifetime + ::core::future::Future<Output = ()>
+            >),
         ),
-        ReturnType::Type(r, ty) => ReturnType::Type(
+        ReturnType::Type(r, ty) if sig.asyncness.is_some() => ReturnType::Type(
             *r,
-            parse_quote!(
-                ::dynify::r#priv::Fn<(#(#input_types,)*), dyn #output_lifetime + ::core::future::Future<Output = #ty>>
-            ),
+            parse_quote!(::dynify::r#priv::Fn<
+                (#(#input_types,)*),
+                dyn #output_lifetime + ::core::future::Future<Output = #ty>
+            >),
         ),
+        ty @ ReturnType::Type(..) => {
+            let (r, ty) = get_impl_type(ty).unwrap();
+            let bounds = ty
+                .bounds
+                .pairs()
+                .filter(|p| !matches!(p.value(), syn::TypeParamBound::Lifetime(_)));
+            ReturnType::Type(
+                r,
+                parse_quote!(::dynify::r#priv::Fn<
+                    (#(#input_types,)*),
+                    dyn #output_lifetime + #(#bounds)*
+                >),
+            )
+        },
     };
 
     sig.output = output_type;
@@ -202,4 +217,9 @@ fn transform_fn(
     Ok(sealed_recv
         .map(|_| TransformResult::Method)
         .unwrap_or(TransformResult::Function))
+}
+
+fn get_impl_type(ty: &ReturnType) -> Option<(Token![->], &syn::TypeImplTrait)> {
+    as_variant!(ty, ReturnType::Type(r, t))
+        .and_then(|(r, ty)| as_variant!(&**ty, Type::ImplTrait).map(|ty| (*r, ty)))
 }
