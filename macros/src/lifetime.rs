@@ -139,12 +139,13 @@ impl LifetimeCollector<'_> {
                     .map(|selected| *selected = true);
             },
             // In second pass, we only need to update the first elided lifetime.
-            Pass::Second if &lifetime.ident == self.basename => {
+            Pass::Second => {
+                assert_eq!(&lifetime.ident, self.basename);
                 self.state = Pass::Finished;
                 lifetime.ident = format_ident!("{}0", self.basename, span = lifetime.span());
                 self.elided[self.index].ident = lifetime.ident.clone();
             },
-            Pass::Second | Pass::Finished => {},
+            Pass::Finished => {},
         }
     }
 
