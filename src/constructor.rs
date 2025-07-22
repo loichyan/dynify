@@ -209,7 +209,7 @@ impl<T: ?Sized> Opaque<T> {
 pub trait Dynify: Construct {
     /// Constructs the object in the supplied container.
     ///
-    /// For non-panicking variant, use [`try_init`](Self::try_init).
+    /// For a non-panicking alternative see [`try_init`](Self::try_init).
     ///
     /// # Panic
     ///
@@ -245,7 +245,7 @@ pub trait Dynify: Construct {
 
     /// Constructs the object in two containers in turn.
     ///
-    /// For non-panicking variant, use [`try_init2`](Self::try_init2).
+    /// For a non-panicking alternative see [`try_init2`](Self::try_init2).
     ///
     /// # Examples
     ///
@@ -302,7 +302,7 @@ impl<T: Construct> Dynify for T {}
 pub trait PinDynify: PinConstruct {
     /// Constructs the object in the supplied container.
     ///
-    /// For non-panicking variant, use [`try_pin_init`](Self::try_pin_init).
+    /// For a non-panicking alternative see [`try_pin_init`](Self::try_pin_init).
     ///
     /// # Panic
     ///
@@ -338,7 +338,7 @@ pub trait PinDynify: PinConstruct {
 
     /// Constructs the object in two containers in turn.
     ///
-    /// For non-panicking variant, use [`try_pin_init2`](Self::try_pin_init2).
+    /// For a non-panicking alternative see [`try_pin_init2`](Self::try_pin_init2).
     ///
     /// # Panic
     ///
