@@ -3,9 +3,15 @@ use quote::ToTokens;
 use syn::Attribute;
 
 macro_rules! as_variant {
-    ($val:expr, $variant:path $(,)?) => {
+    ($val:expr, $($path:ident)::+ $(,)?) => {
         match $val {
-            $variant(val) => Some(val),
+            $($path)::*(val) => Some(val),
+            _ => None,
+        }
+    };
+    ($val:expr, $($path:ident)::+ ($($field:ident),* $(,)?) $(,)?) => {
+        match $val {
+            $($path)::*($($field),*) => Some(($($field),*)),
             _ => None,
         }
     };
