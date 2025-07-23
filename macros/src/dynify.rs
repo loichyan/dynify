@@ -1,6 +1,9 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
-use syn::{parse_quote, Error, Ident, Lifetime, Result, ReturnType, Token, Type};
+use syn::{
+    parse_quote, parse_quote_spanned, Error, FnArg, Ident, Lifetime, Result, ReturnType, Token,
+    Type,
+};
 
 use crate::lifetime::TraitContext;
 use crate::utils::*;
@@ -68,12 +71,17 @@ pub fn expand(
 
     let impl_generics = quote_impl_generics(&dyn_trait.generics);
     Ok(quote!(
+        #[allow(async_fn_in_trait)]
         #input
+
+        #[allow(async_fn_in_trait)]
+        #[allow(clippy::type_complexity)]
         #dyn_trait
+
+        #[allow(clippy::type_complexity)]
         impl<#impl_generics #impl_target: #trait_name #ty_generics>
-        #dyn_trait_name #ty_generics for #impl_target #where_clause {
-            #trait_impl_items
-        }
+        #dyn_trait_name #ty_generics for #impl_target
+        #where_clause { #trait_impl_items }
     ))
 }
 
@@ -84,25 +92,25 @@ fn quote_transformed_body(
     sig: &syn::Signature,
 ) -> impl ToTokens {
     let ident = &sig.ident;
-    let arg_idents = sig.inputs.iter().map(|arg| {
-        quote_with(move |tokens| match arg {
-            syn::FnArg::Receiver(r) => r.self_token.to_tokens(tokens),
-            syn::FnArg::Typed(t) => t.pat.to_tokens(tokens),
+    let arg_idents = sig.inputs.pairs().map(|p| {
+        quote_with(move |tokens| {
+            match p.value() {
+                FnArg::Receiver(r) => r.self_token.to_tokens(tokens),
+                FnArg::Typed(t) => t.pat.to_tokens(tokens),
+            }
+            p.punct_or_default().to_tokens(tokens);
         })
     });
     match transformed {
         TransformResult::Noop if sig.asyncness.is_some() => {
-            quote!(#target::#ident(#(#arg_idents,)*).await)
+            quote!(#target::#ident(#(#arg_idents)*).await)
         },
         TransformResult::Noop => {
-            quote!(#target::#ident(#(#arg_idents,)*))
+            quote!(#target::#ident(#(#arg_idents)*))
         },
         // TODO: expand macro calls
-        TransformResult::Function => {
-            quote!(::dynify::from_fn!(#target::#ident, #(#arg_idents,)*))
-        },
-        TransformResult::Method => {
-            quote!(::dynify::from_fn!(#target::#ident, #(#arg_idents,)*))
+        TransformResult::Function | TransformResult::Method => {
+            quote!(::dynify::from_fn!(#target::#ident, #(#arg_idents)*))
         },
     }
 }
@@ -118,7 +126,7 @@ fn quote_impl_generics(generics: &syn::Generics) -> impl '_ + ToTokens {
             .chain(generics.params.pairs().filter(|p| !is_lifetime(p.value())))
             .for_each(|p| {
                 p.value().to_tokens(tokens);
-                p.punct().map(|p| **p).unwrap_or_default().to_tokens(tokens);
+                p.punct_or_default().to_tokens(tokens);
             });
     })
 }
@@ -137,18 +145,14 @@ fn transform_fn(
     sig: &mut syn::Signature,
     force: bool,
 ) -> Result<TransformResult> {
+    let fn_span = sig.ident.span();
     if sig.asyncness.is_none() && get_impl_type(&sig.output).is_none() {
         return Ok(TransformResult::Noop);
     }
 
     let sealed_recv = match sig.receiver().map(crate::receiver::infer_receiver) {
         Some(Some(r)) => Some(r),
-        Some(None) => {
-            return Err(Error::new(
-                sig.ident.span(),
-                "cannot determine receiver type",
-            ))
-        },
+        Some(None) => return Err(Error::new(fn_span, "cannot determine receiver type")),
         None if force => None,
         None => return Ok(TransformResult::Noop),
     };
@@ -170,28 +174,34 @@ fn transform_fn(
     crate::lifetime::inject_output_lifetime(context, sig, &output_lifetime)?;
 
     // Infer the appropriate output type
-    let input_types = {
-        let this = sealed_recv
+    let input_types = quote_with(|tokens| {
+        sealed_recv
             .as_ref()
-            .map::<Type, _>(|r| parse_quote!(::dynify::r#priv::#r));
-        let args = sig
-            .inputs
-            .iter()
-            .filter_map(|a| as_variant!(a, syn::FnArg::Typed).map(|t| Type::clone(&*t.ty)));
-        this.into_iter().chain(args)
-    };
+            .map(|r| quote!(::dynify::r#priv::#r,))
+            .to_tokens(tokens);
+        sig.inputs
+            .pairs()
+            .skip(sealed_recv.is_some() as usize)
+            .for_each(|p| {
+                match p.value() {
+                    FnArg::Receiver(r) => r.ty.to_tokens(tokens),
+                    FnArg::Typed(t) => t.ty.to_tokens(tokens),
+                }
+                p.punct_or_default().to_tokens(tokens);
+            });
+    });
     let output_type = match &sig.output {
         ReturnType::Default => ReturnType::Type(
             <Token![->]>::default(),
-            parse_quote!(::dynify::r#priv::Fn<
-                (#(#input_types,)*),
+            parse_quote_spanned!(fn_span => ::dynify::r#priv::Fn<
+                (#input_types),
                 dyn #output_lifetime + ::core::future::Future<Output = ()>
             >),
         ),
         ReturnType::Type(r, ty) if sig.asyncness.is_some() => ReturnType::Type(
             *r,
-            parse_quote!(::dynify::r#priv::Fn<
-                (#(#input_types,)*),
+            parse_quote_spanned!(fn_span => ::dynify::r#priv::Fn<
+                (#input_types),
                 dyn #output_lifetime + ::core::future::Future<Output = #ty>
             >),
         ),
@@ -203,8 +213,8 @@ fn transform_fn(
                 .filter(|p| !matches!(p.value(), syn::TypeParamBound::Lifetime(_)));
             ReturnType::Type(
                 r,
-                parse_quote!(::dynify::r#priv::Fn<
-                    (#(#input_types,)*),
+                parse_quote_spanned!(fn_span => ::dynify::r#priv::Fn<
+                    (#input_types),
                     dyn #output_lifetime + #(#bounds)*
                 >),
             )

@@ -44,22 +44,36 @@ pub(crate) fn extract_inner_type(arg: &syn::PathArguments) -> Option<&syn::Type>
 }
 
 /// Splits attributes into `#[outer]` and `#![inner]`.
-pub(crate) trait FilterAttrs<'a> {
-    type Filtered: Iterator<Item = &'a Attribute>;
-
-    fn outer(self) -> Self::Filtered;
-    fn inner(self) -> Self::Filtered;
+pub(crate) trait AttrsExt<'a> {
+    fn outer(self) -> impl Iterator<Item = &'a Attribute>;
+    fn inner(self) -> impl Iterator<Item = &'a Attribute>;
 }
-impl<'a> FilterAttrs<'a> for &'a [Attribute] {
-    type Filtered = std::iter::Filter<std::slice::Iter<'a, Attribute>, fn(&&Attribute) -> bool>;
-
-    fn outer(self) -> Self::Filtered {
+impl<'a> AttrsExt<'a> for &'a [Attribute] {
+    fn outer(self) -> impl Iterator<Item = &'a Attribute> {
         self.iter()
             .filter(|attr| matches!(attr.style, syn::AttrStyle::Outer))
     }
 
-    fn inner(self) -> Self::Filtered {
+    fn inner(self) -> impl Iterator<Item = &'a Attribute> {
         self.iter()
             .filter(|attr| matches!(attr.style, syn::AttrStyle::Inner(_)))
+    }
+}
+
+pub(crate) trait PairExt {
+    type Value;
+    type Punct;
+
+    fn punct_or_default(&self) -> Self::Punct;
+}
+impl<T, P> PairExt for syn::punctuated::Pair<&T, &P>
+where
+    P: syn::token::Token + Copy + Default,
+{
+    type Value = T;
+    type Punct = P;
+
+    fn punct_or_default(&self) -> Self::Punct {
+        self.punct().map(|&&p| p).unwrap_or_default()
     }
 }
