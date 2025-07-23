@@ -8,6 +8,10 @@ edition = "2021"
 rust-version = "1.80"
 repository = "https://github.com/loichyan/dynify"
 
+[workspace.dependencies]
+fastrand = "2.3.0"
+rstest = { version = "0.25.0", default-features = false }
+
 [package]
 name = "dynify"
 version = "0.1.0"
@@ -32,9 +36,9 @@ dynify-macros = { path = "./macros", optional = true }
 smallvec = { version = "1", optional = true }
 
 [dev-dependencies]
-fastrand = "2.3.0"
+fastrand.workspace = true
 pollster = { version = "0.4.0", features = ["macro"] }
-rstest = { version = "0.25.0", default-features = false }
+rstest.workspace = true
 trybuild = "1.0.105"
 
 [package.metadata.docs.rs]

@@ -5,7 +5,9 @@ use quote::format_ident;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
-use syn::{parse_quote, parse_quote_spanned, visit_mut, Error, Ident, Lifetime, Result, Token};
+use syn::{
+    parse_quote, parse_quote_spanned, visit_mut, Error, FnArg, Ident, Lifetime, Result, Token,
+};
 
 pub(crate) struct TraitContext<'a> {
     pub name: &'a Ident,
@@ -13,7 +15,7 @@ pub(crate) struct TraitContext<'a> {
 }
 
 pub(crate) fn inject_output_lifetime(
-    context: &TraitContext,
+    context: Option<&TraitContext>,
     sig: &mut syn::Signature,
     output_lifetime: &Lifetime,
 ) -> Result<()> {
@@ -28,8 +30,8 @@ pub(crate) fn inject_output_lifetime(
     let mut elided = Vec::new(); // reused across iterations
     for arg in sig.inputs.iter_mut() {
         let basename = match arg {
-            syn::FnArg::Receiver(recv) => Ident::new("this", recv.self_token.span),
-            syn::FnArg::Typed(a) => as_variant!(&*a.pat, syn::Pat::Ident)
+            FnArg::Receiver(recv) => Ident::new("this", recv.self_token.span),
+            FnArg::Typed(a) => as_variant!(&*a.pat, syn::Pat::Ident)
                 .map(|p| &p.ident)
                 .ok_or_else(|| Error::new(a.span(), "typed argument must be a valid identifier"))?
                 .clone(),
@@ -69,7 +71,12 @@ pub(crate) fn inject_output_lifetime(
         .filter(|(_, selected)| **selected)
         .map(|(lt, _)| lt)
         .chain(elided.iter())
-        .chain(context.generics.lifetimes().map(|p| &p.lifetime))
+        .chain(
+            context
+                .into_iter()
+                .flat_map(|c| c.generics.lifetimes())
+                .map(|p| &p.lifetime),
+        )
     {
         default_where_clause(&mut sig.generics.where_clause)
             .predicates
@@ -81,7 +88,7 @@ pub(crate) fn inject_output_lifetime(
         .generics
         .params
         .iter()
-        .chain(context.generics.params.iter())
+        .chain(context.into_iter().flat_map(|c| c.generics.params.iter()))
     {
         let syn::GenericParam::Type(ty) = param else {
             continue;
@@ -92,10 +99,10 @@ pub(crate) fn inject_output_lifetime(
     }
 
     // Ensure `Self` outlives the output lifetime
-    if sig.receiver().is_some() {
+    if context.is_some() && sig.receiver().is_some() {
         default_where_clause(&mut sig.generics.where_clause)
             .predicates
-            .push(parse_quote_spanned!(context.name.span() => Self: #output_lifetime));
+            .push(parse_quote_spanned!(context.unwrap().name.span() => Self: #output_lifetime));
     }
 
     Ok(())
@@ -125,7 +132,7 @@ impl LifetimeCollector<'_> {
         match lifetime {
             Some(lt) => self.collect_lifetime(lt),
             None if !self.is_finished() => *lifetime = Some(self.next_lifetime(span)),
-            None => {},
+            None => unreachable!(),
         }
     }
 
@@ -172,8 +179,8 @@ impl visit_mut::VisitMut for LifetimeCollector<'_> {
 
     fn visit_fn_arg_mut(&mut self, arg: &mut syn::FnArg) {
         match arg {
-            syn::FnArg::Receiver(recv) => self.visit_receiver_mut(recv),
-            syn::FnArg::Typed(a) => self.visit_type_mut(&mut a.ty),
+            FnArg::Receiver(recv) => self.visit_receiver_mut(recv),
+            FnArg::Typed(a) => self.visit_type_mut(&mut a.ty),
         }
     }
 
@@ -207,3 +214,7 @@ fn default_where_clause(where_clause: &mut Option<syn::WhereClause>) -> &mut syn
         predicates: Punctuated::new(),
     })
 }
+
+#[cfg(test)]
+#[path = "lifetime_tests.rs"]
+mod tests;
