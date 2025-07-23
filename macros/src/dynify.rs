@@ -155,7 +155,7 @@ fn transform_fn(
     };
 
     let output_lifetime = Lifetime::new("'dynify", fn_span);
-    crate::lifetime::inject_output_lifetime(context, sig, &output_lifetime)?;
+    crate::lifetime::inject_output_lifetime(Some(context), sig, &output_lifetime)?;
 
     // Infer the appropriate output type
     let input_types = quote_with(|tokens| {
