@@ -1,9 +1,6 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
-use syn::{
-    parse_quote, parse_quote_spanned, Error, FnArg, Ident, Lifetime, Result, ReturnType, Token,
-    Type,
-};
+use syn::{parse_quote_spanned, Error, FnArg, Ident, Lifetime, Result, ReturnType, Token, Type};
 
 use crate::lifetime::TraitContext;
 use crate::utils::*;
@@ -157,20 +154,7 @@ fn transform_fn(
         None => return Ok(TransformResult::Noop),
     };
 
-    // If `'dynify` is already specified, use it directly.
-    let output_lifetime = sig
-        .generics
-        .params
-        .iter()
-        .map_while(|p| as_variant!(p, syn::GenericParam::Lifetime))
-        .find(|l| l.lifetime.ident == "dynify")
-        .map(|l| l.lifetime.clone());
-    // Otherwise, insert a new one to the signature.
-    let output_lifetime = output_lifetime.unwrap_or_else(|| {
-        let lt = Lifetime::new("'dynify", Span::call_site());
-        sig.generics.params.push(parse_quote!(#lt));
-        lt
-    });
+    let output_lifetime = Lifetime::new("'dynify", fn_span);
     crate::lifetime::inject_output_lifetime(context, sig, &output_lifetime)?;
 
     // Infer the appropriate output type

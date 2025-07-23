@@ -59,7 +59,8 @@ pub(crate) fn inject_output_lifetime(
     // as lifetimes are always printed before them.
     let elided_params = elided
         .iter()
-        .map::<syn::GenericParam, _>(|lt| parse_quote!(#lt));
+        .map::<syn::GenericParam, _>(|lt| parse_quote!(#lt))
+        .chain(std::iter::once(parse_quote!(#output_lifetime)));
     sig.generics.params.extend(elided_params);
 
     // Ensure every lifetime outlives the output lifetime
