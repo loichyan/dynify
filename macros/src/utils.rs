@@ -77,3 +77,31 @@ where
         self.punct().map(|&&p| p).unwrap_or_default()
     }
 }
+
+#[cfg(test)]
+macro_rules! define_macro_tests {
+    ($(#[case::$name:ident($($args:expr),* $(,)?)])* fn $($fun:tt)*) => {
+        #[rstest]
+        $(#[case::$name(stringify!($name), $($args),*)])*
+        fn $($fun)*
+    };
+}
+
+#[cfg(test)]
+pub(crate) fn validate_macro_output(output: &str, path: &str) {
+    let path: &std::path::Path = path.as_ref();
+    if std::env::var("TRYBUILD").map_or(false, |v| v == "overwrite") {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        std::fs::write(path, output).unwrap();
+    } else {
+        assert!(
+            path.exists(),
+            "missing output for '{}', try to update it with TRYBUILD=overwrite",
+            path.file_name().unwrap().to_str().unwrap(),
+        );
+        let expected = std::fs::read_to_string(path).unwrap();
+        pretty_assertions::assert_str_eq!(output, expected);
+    }
+}
