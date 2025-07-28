@@ -227,7 +227,6 @@ fn injected_lifetimes_in_trait(
     let mut input: Signature = syn::parse2(input.clone()).unwrap();
     let trait_context: ItemTrait = syn::parse2(context).unwrap();
     let trait_context = TraitContext {
-        name: &trait_context.ident,
         generics: &trait_context.generics,
     };
     inject_output_lifetime(Some(&trait_context), &mut input, &output_lifetime).unwrap();
