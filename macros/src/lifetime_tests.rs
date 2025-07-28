@@ -1,14 +1,9 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use rstest::{fixture, rstest};
+use rstest::rstest;
 
 use super::*;
 use crate::utils::*;
-
-#[fixture]
-fn output_lifetime() -> Lifetime {
-    Lifetime::new("'dynify", Span::call_site())
-}
 
 define_macro_tests!(
     // === Lifetimes in Arguments === //
@@ -108,13 +103,7 @@ define_macro_tests!(
         quote!(trait Test<'Life1, 'Life2, Arg1, Arg2> {}),
         quote!(fn test(this: &Self, arg: &str)),
     )]
-    fn ui(
-        #[case] test_name: &str,
-        #[case] context: TokenStream,
-        #[case] input: TokenStream,
-        output_lifetime: Lifetime,
-    ) {
-        let mut input: syn::Signature = syn::parse2(input).unwrap();
+    fn ui(#[case] test_name: &str, #[case] context: TokenStream, #[case] input: TokenStream) {
         let trait_context = match context.is_empty() {
             false => Some(syn::parse2::<syn::ItemTrait>(context).unwrap()),
             true => None,
@@ -122,6 +111,9 @@ define_macro_tests!(
         let trait_context = trait_context.as_ref().map(|t| TraitContext {
             generics: &t.generics,
         });
+
+        let mut input: syn::Signature = syn::parse2(input).unwrap();
+        let output_lifetime = Lifetime::new("'dynify", Span::call_site());
         inject_output_lifetime(trait_context.as_ref(), &mut input, &output_lifetime).unwrap();
 
         let input = prettyplease::unparse(&syn::parse_quote!(#input {}));
