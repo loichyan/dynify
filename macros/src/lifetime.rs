@@ -10,7 +10,6 @@ use syn::{
 };
 
 pub(crate) struct TraitContext<'a> {
-    pub name: &'a Ident,
     pub generics: &'a syn::Generics,
 }
 
@@ -99,10 +98,11 @@ pub(crate) fn inject_output_lifetime(
     }
 
     // Ensure `Self` outlives the output lifetime
-    if context.is_some() && sig.receiver().is_some() {
+    if let Some(recv) = sig.receiver() {
+        let span = recv.self_token.span;
         default_where_clause(&mut sig.generics.where_clause)
             .predicates
-            .push(parse_quote_spanned!(context.unwrap().name.span() => Self: #output_lifetime));
+            .push(parse_quote_spanned!(span => Self: #output_lifetime));
     }
 
     Ok(())

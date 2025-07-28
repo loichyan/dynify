@@ -51,7 +51,6 @@ pub fn expand(
             },
             syn::TraitItem::Fn(syn::TraitItemFn { attrs, sig, .. }) => {
                 let context = TraitContext {
-                    name: dyn_trait_name,
                     generics: &dyn_trait.generics,
                 };
                 let transformed = transform_fn(&context, sig, false)?;
