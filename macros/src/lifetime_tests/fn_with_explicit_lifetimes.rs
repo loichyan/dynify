@@ -1,3 +1,4 @@
+/* This file is @generated for testing purpose */
 fn test<'this1, 'arg20, 'this0, 'arg1, 'arg21, 'dynify>(
     self: MySelf<'this0, 'this1>,
     arg1: &'arg1 str,

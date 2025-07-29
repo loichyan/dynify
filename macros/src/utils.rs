@@ -89,12 +89,16 @@ macro_rules! define_macro_tests {
 
 #[cfg(test)]
 pub(crate) fn validate_macro_output(output: &str, path: &str) {
+    use std::io::Write;
+
     let path: &std::path::Path = path.as_ref();
     if std::env::var("TRYBUILD").map_or(false, |v| v == "overwrite") {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).unwrap();
         }
-        std::fs::write(path, output).unwrap();
+        let mut f = std::fs::File::create(path).unwrap();
+        writeln!(&mut f, "/* This file is @generated for testing purpose */").unwrap();
+        f.write_all(output.as_bytes()).unwrap();
     } else {
         assert!(
             path.exists(),
@@ -102,6 +106,8 @@ pub(crate) fn validate_macro_output(output: &str, path: &str) {
             path.file_name().unwrap().to_str().unwrap(),
         );
         let expected = std::fs::read_to_string(path).unwrap();
+        let first_line_end = expected.find('\n').unwrap();
+        let expected = &expected[(first_line_end + 1)..];
         pretty_assertions::assert_str_eq!(output, expected);
     }
 }
