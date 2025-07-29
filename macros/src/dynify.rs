@@ -5,11 +5,7 @@ use syn::{parse_quote_spanned, Error, FnArg, Ident, Lifetime, Result, ReturnType
 use crate::lifetime::TraitContext;
 use crate::utils::*;
 
-pub fn expand(
-    _attr: proc_macro::TokenStream,
-    input: proc_macro::TokenStream,
-) -> Result<TokenStream> {
-    let input = TokenStream::from(input);
+pub fn expand(_attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let mut dyn_trait = syn::parse2::<syn::ItemTrait>(input.clone())?;
     let mut trait_impl_items = TokenStream::new();
 
@@ -216,3 +212,7 @@ fn get_impl_type(ty: &ReturnType) -> Option<(Token![->], &syn::TypeImplTrait)> {
     as_variant!(ty, ReturnType::Type(r, t))
         .and_then(|(r, ty)| as_variant!(&**ty, Type::ImplTrait).map(|ty| (*r, ty)))
 }
+
+#[cfg(test)]
+#[path = "dynify_tests.rs"]
+mod tests;

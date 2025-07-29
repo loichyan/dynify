@@ -8,7 +8,7 @@ mod receiver;
 
 #[proc_macro_attribute]
 pub fn dynify(attr: TokenStream, input: TokenStream) -> TokenStream {
-    dynify::expand(attr, input)
+    dynify::expand(attr.into(), input.into())
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }

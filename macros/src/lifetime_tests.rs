@@ -39,7 +39,11 @@ define_macro_tests!(
         quote!(),
         quote!(fn test(self: MySelf<'_, '_>, arg: (&str, &str))),
     )]
-    // == Functions with Extra Generics == //
+    #[case::fn_pointer_as_arg(
+        quote!(),
+        quote!(fn test(&self, arg: fn(&str) -> &str)),
+    )]
+    // == Functions with Generics == //
     #[case::fn_with_unused_lifetime(
         quote!(),
         quote!(fn test<'x>(&self)),
@@ -64,12 +68,7 @@ define_macro_tests!(
             arg2: (&'arg20 str, &str),
         )),
     )]
-    // == Edge Cases == //
-    #[case::fn_pointer_as_arg(
-        quote!(),
-        quote!(fn test(&self, arg: fn(&str) -> &str)),
-    )]
-    // === Methods in A Trait === //
+    // === Methods in Traits === //
     #[case::method(
         quote!(trait Test {}),
         quote!(fn test(&self, arg: &str)),
@@ -79,14 +78,14 @@ define_macro_tests!(
         quote!(fn test(&self, arg: &str)),
     )]
     #[case::method_with_trait_lifetime(
-        quote!(trait Test<'Life> {}),
+        quote!(trait Test<'life> {}),
         quote!(fn test(&self, arg: &str)),
     )]
     #[case::method_with_multi_trait_generics(
-        quote!(trait Test<'Life1, 'Life2, Arg1, Arg2> {}),
+        quote!(trait Test<'life1, 'life2, Arg1, Arg2> {}),
         quote!(fn test(&self, arg: &str)),
     )]
-    // === Bare Functions in A Trait === //
+    // === Regular Functions in Traits === //
     #[case::trait_fn(
         quote!(trait Test {}),
         quote!(fn test(this: &Self, arg: &str)),
@@ -96,11 +95,11 @@ define_macro_tests!(
         quote!(fn test(this: &Self, arg: &str)),
     )]
     #[case::trait_fn_with_trait_lifetime(
-        quote!(trait Test<'Life> {}),
+        quote!(trait Test<'life> {}),
         quote!(fn test(this: &Self, arg: &str)),
     )]
     #[case::trait_fn_with_multi_trait_generics(
-        quote!(trait Test<'Life1, 'Life2, Arg1, Arg2> {}),
+        quote!(trait Test<'life1, 'life2, Arg1, Arg2> {}),
         quote!(fn test(this: &Self, arg: &str)),
     )]
     fn ui(#[case] test_name: &str, #[case] context: TokenStream, #[case] input: TokenStream) {
@@ -116,7 +115,7 @@ define_macro_tests!(
         let output_lifetime = Lifetime::new("'dynify", Span::call_site());
         inject_output_lifetime(trait_context.as_ref(), &mut input, &output_lifetime).unwrap();
 
-        let input = prettyplease::unparse(&syn::parse_quote!(#input {}));
-        validate_macro_output(&input, &format!("src/lifetime_tests/{}.rs", test_name));
+        let output = prettyplease::unparse(&syn::parse_quote!(#input {}));
+        validate_macro_output(&output, &format!("src/lifetime_tests/{}.rs", test_name));
     }
 );
