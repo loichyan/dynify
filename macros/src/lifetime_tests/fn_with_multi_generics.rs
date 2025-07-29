@@ -1,3 +1,4 @@
+/* This file is @generated for testing purpose */
 fn test<
     'this1,
     'arg20,
