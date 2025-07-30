@@ -83,37 +83,49 @@ where
     }
 }
 
-#[cfg(test)]
-macro_rules! define_macro_tests {
-    ($(#[case::$name:ident($($args:expr),* $(,)?)])* fn $($fun:tt)*) => {
-        #[rstest]
-        $(#[case::$name(stringify!($name), $($args),*)])*
-        fn $($fun)*
-    };
-}
-
+#[allow(clippy::items_after_test_module)]
 #[cfg(test)]
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub(crate) fn validate_macro_output(output: &str, path: &str) {
-    use std::io::Write;
+#[macro_use]
+mod test_utils {
+    macro_rules! define_macro_tests {
+        ($($fun:tt)*) => { __define_macro_tests!(output=[] input=[$($fun)*]); };
+    }
+    macro_rules! __define_macro_tests {
+        (output=[$($output:tt)*] input=[#[case::$name:ident($($args:tt)*)] $($input:tt)*]) => {
+            __define_macro_tests!(output=[$($output)* #[case::$name(stringify!($name), $($args)*)]] input=[$($input)*]);
+        };
+        (output=[$($output:tt)*] input=[#[$attr:meta] $($input:tt)*]) => {
+            __define_macro_tests!(output=[$($output)* #[$attr]] input=[$($input)*]);
+        };
+        (output=[$($output:tt)*] input=[fn $($fun:tt)*]) => {
+            #[rstest] $($output)* fn $($fun)*
+        };
+    }
 
-    let path: &std::path::Path = path.as_ref();
-    if std::env::var("TRYBUILD").map_or(false, |v| v == "overwrite") {
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).unwrap();
+    pub(crate) fn validate_macro_output(output: &str, path: &str) {
+        use std::io::Write;
+
+        let path: &std::path::Path = path.as_ref();
+        if std::env::var("TRYBUILD").map_or(false, |v| v == "overwrite") {
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir).unwrap();
+            }
+            let mut f = std::fs::File::create(path).unwrap();
+            writeln!(&mut f, "/* This file is @generated for testing purpose */").unwrap();
+            f.write_all(output.as_bytes()).unwrap();
+        } else {
+            assert!(
+                path.exists(),
+                "missing output for '{}', try to update it with TRYBUILD=overwrite",
+                path.file_name().unwrap().to_str().unwrap(),
+            );
+            let expected = std::fs::read_to_string(path).unwrap();
+            let first_line_end = expected.find('\n').unwrap();
+            let expected = &expected[(first_line_end + 1)..];
+            pretty_assertions::assert_str_eq!(output, expected);
         }
-        let mut f = std::fs::File::create(path).unwrap();
-        writeln!(&mut f, "/* This file is @generated for testing purpose */").unwrap();
-        f.write_all(output.as_bytes()).unwrap();
-    } else {
-        assert!(
-            path.exists(),
-            "missing output for '{}', try to update it with TRYBUILD=overwrite",
-            path.file_name().unwrap().to_str().unwrap(),
-        );
-        let expected = std::fs::read_to_string(path).unwrap();
-        let first_line_end = expected.find('\n').unwrap();
-        let expected = &expected[(first_line_end + 1)..];
-        pretty_assertions::assert_str_eq!(output, expected);
     }
 }
+#[cfg(test)]
+pub(crate) use test_utils::*;
