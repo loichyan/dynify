@@ -22,3 +22,6 @@ fastrand.workspace = true
 pretty_assertions = "1.4.1"
 prettyplease = "0.2.35"
 rstest.workspace = true
+
+[lints]
+workspace = true

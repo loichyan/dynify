@@ -12,6 +12,14 @@ repository = "https://github.com/loichyan/dynify"
 fastrand = "2.3.0"
 rstest = { version = "0.25.0", default-features = false }
 
+[workspace.lints.rust]
+unexpected_cfgs.level = "warn"
+unexpected_cfgs.check-cfg = ["cfg(coverage)", "cfg(coverage_nightly)"]
+unknown_lints = "allow"
+
+[workspace.lints.clippy]
+uninlined_format_args = "allow"
+
 [package]
 name = "dynify"
 version = "0.1.0"
@@ -45,10 +53,5 @@ trybuild = "1.0.105"
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-[lints.rust]
-unexpected_cfgs.level = "warn"
-unexpected_cfgs.check-cfg = ["cfg(coverage)", "cfg(coverage_nightly)"]
-unknown_lints = "allow"
-
-[lints.clippy]
-uninlined_format_args = "allow"
+[lints]
+workspace = true
