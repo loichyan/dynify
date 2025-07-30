@@ -26,6 +26,7 @@ impl<F: FnOnce()> Drop for Defer<F> {
 
 #[allow(clippy::items_after_test_module)]
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod test_utils {
     use core::mem::MaybeUninit;
     use std::any::Any;
