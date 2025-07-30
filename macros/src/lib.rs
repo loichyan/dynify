@@ -1,3 +1,5 @@
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+
 use proc_macro::TokenStream;
 
 #[macro_use]
