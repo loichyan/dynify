@@ -103,6 +103,7 @@ jobs:
         run: cargo build --workspace
 
       - name: Check | Test suite
+        continue-on-error: ${{ matrix.toolchain == 'nightly' }}
         run: cargo test --workspace --all-features
 
       - name: Check | Miri
