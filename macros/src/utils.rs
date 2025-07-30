@@ -28,19 +28,24 @@ impl<F: Fn(&mut TokenStream)> ToTokens for QuoteWith<F> {
 }
 
 /// Determines whether the supplied path matches an item in `std`.
-pub(crate) fn is_std(path: &syn::Path, mod1: &str, ty: &str) -> bool {
-    path.is_ident(ty)
-        || path.segments.len() == 3
-            && (path.segments[0].ident == "std" || path.segments[0].ident == "core")
-            && path.segments[1].ident == mod1
-            && path.segments[2].ident == ty
+pub(crate) fn is_std(path: &syn::Path, mod1: &str, mod2: &str, ty: &str) -> bool {
+    let segments = &path.segments;
+    segments.len() == 1 && segments[0].ident == ty
+        || segments.len() == 3
+            && (segments[0].ident == "std" || segments[0].ident == mod1)
+            && segments[1].ident == mod2
+            && segments[2].ident == ty
 }
 
-/// Extracts the first type generic argument.
-pub(crate) fn extract_inner_type(arg: &syn::PathArguments) -> Option<&syn::Type> {
-    let arg = as_variant!(arg, syn::PathArguments::AngleBracketed)?;
-    let first = arg.args.first()?;
-    as_variant!(first, syn::GenericArgument::Type)
+/// Extracts the inner type generic argument.
+pub(crate) fn extract_inner_type(path: &syn::Path) -> Option<&syn::Type> {
+    let segment = path.segments.last().unwrap();
+    let args = &as_variant!(&segment.arguments, syn::PathArguments::AngleBracketed)?.args;
+    if args.len() != 1 {
+        None
+    } else {
+        as_variant!(&args[0], syn::GenericArgument::Type)
+    }
 }
 
 /// Splits attributes into `#[outer]` and `#![inner]`.
@@ -88,6 +93,7 @@ macro_rules! define_macro_tests {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub(crate) fn validate_macro_output(output: &str, path: &str) {
     use std::io::Write;
 
