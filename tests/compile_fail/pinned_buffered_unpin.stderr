@@ -1,5 +1,5 @@
 error[E0277]: `PhantomPinned` cannot be unpinned
-  --> tests/ui/pinned_buffered_unpin_fail.rs:20:19
+  --> tests/compile_fail/pinned_buffered_unpin.rs:20:19
    |
 20 |     let _ = unpin(pinned); // fails
    |             ----- ^^^^^^ the trait `Unpin` is not implemented for `Buffered<'_, PhantomPinned>`
@@ -9,7 +9,7 @@ error[E0277]: `PhantomPinned` cannot be unpinned
    = note: the trait bound `Buffered<'_, PhantomPinned>: Unpin` is not satisfied
    = note: required for `Buffered<'_, PhantomPinned>` to implement `Unpin`
 note: required by a bound in `unpin`
-  --> tests/ui/pinned_buffered_unpin_fail.rs:9:16
+  --> tests/compile_fail/pinned_buffered_unpin.rs:9:16
    |
 7  | fn unpin<P: std::ops::Deref>(ptr: Pin<P>) -> P
    |    ----- required by a bound in this function

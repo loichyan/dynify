@@ -1,5 +1,5 @@
 error[E0308]: arguments to this function are incorrect
- --> tests/ui/from_fn_with_closure_fail.rs:3:5
+ --> tests/compile_fail/from_fn_with_closure.rs:3:5
   |
 3 |     dynify::from_fn!(move || var);
   |     ^^^^^^^^^^^^^^^^^-------^^^^^
@@ -8,26 +8,26 @@ error[E0308]: arguments to this function are incorrect
   |                      the found closure
   |
 note: expected fn pointer, found closure
- --> tests/ui/from_fn_with_closure_fail.rs:3:5
+ --> tests/compile_fail/from_fn_with_closure.rs:3:5
   |
 3 |     dynify::from_fn!(move || var);
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  = note: expected fn pointer `fn(dynify::function::MustNotBeClosure) -> {closure@$DIR/tests/ui/from_fn_with_closure_fail.rs:3:22: 3:29}`
+  = note: expected fn pointer `fn(dynify::function::MustNotBeClosure) -> {closure@$DIR/tests/compile_fail/from_fn_with_closure.rs:3:22: 3:29}`
                 found closure `{closure@$DIR/src/function.rs:187:17: 187:18}`
 note: closures can only be coerced to `fn` types if they do not capture any variables
- --> tests/ui/from_fn_with_closure_fail.rs:3:30
+ --> tests/compile_fail/from_fn_with_closure.rs:3:30
   |
 3 |     dynify::from_fn!(move || var);
   |                              ^^^ `var` captured here
 note: expected fn pointer, found closure
- --> tests/ui/from_fn_with_closure_fail.rs:3:5
+ --> tests/compile_fail/from_fn_with_closure.rs:3:5
   |
 3 |     dynify::from_fn!(move || var);
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = note: expected fn pointer `for<'a> unsafe fn(Slot<'a>, ()) -> &'a mut Opaque<_>`
                 found closure `{closure@$DIR/src/function.rs:189:17: 189:37}`
 note: closures can only be coerced to `fn` types if they do not capture any variables
- --> tests/ui/from_fn_with_closure_fail.rs:3:30
+ --> tests/compile_fail/from_fn_with_closure.rs:3:30
   |
 3 |     dynify::from_fn!(move || var);
   |                              ^^^ `var` captured here

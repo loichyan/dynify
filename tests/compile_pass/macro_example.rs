@@ -13,3 +13,5 @@ pub trait MyAsync<'x, T> {
     fn foo5(&self, s: &str) -> impl Send + std::future::Future<Output = usize>;
     fn foo6<'a>(&self, s: &str) -> impl 'a + Send + std::any::Any;
 }
+
+fn main() {}

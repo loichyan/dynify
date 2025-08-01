@@ -1,5 +1,5 @@
 error[E0605]: non-primitive cast: `&mut Opaque<i32>` as `&mut Opaque<u32>`
- --> tests/ui/from_closure_wrong_type_fail.rs:2:41
+ --> tests/compile_fail/from_closure_wrong_type.rs:2:41
   |
 2 |     let _ = dynify::from_closure(|slot| slot.write(123i32) as &mut dynify::Opaque<u32>);
   |                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ an `as` expression can only be used to convert between primitive types or to coerce to a specific trait object

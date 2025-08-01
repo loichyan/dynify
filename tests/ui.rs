@@ -1,9 +1,9 @@
-/// Compile tests.
-#[rustversion::stable(1.80)]
-#[test]
 #[cfg_attr(any(miri, coverage), ignore)] // compile tests are meaningless for coverage
-fn ui() {
+#[test]
+fn compile_tests() {
     let t = trybuild::TestCases::new();
-    t.compile_fail("tests/ui/*_fail.rs");
-    t.pass("tests/ui/*_pass.rs");
+    if rustversion::cfg!(stable(1.80)) {
+        t.compile_fail("tests/compile_fail/*.rs"); //  pinned to avoid UI breakages
+    }
+    t.pass("tests/compile_pass/*.rs");
 }
