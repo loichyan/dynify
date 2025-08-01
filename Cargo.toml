@@ -47,6 +47,7 @@ smallvec = { version = "1", optional = true }
 fastrand.workspace = true
 pollster = { version = "0.4.0", features = ["macro"] }
 rstest.workspace = true
+rustversion = "1.0.21"
 trybuild = "1.0.105"
 
 [package.metadata.docs.rs]
