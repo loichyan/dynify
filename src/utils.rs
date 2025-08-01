@@ -13,19 +13,20 @@ macro_rules! doc_macro {
     };
 }
 
+/// Registers callbacks when exiting the current scope.
+pub(crate) fn defer<F: FnOnce()>(f: F) -> Defer<F> {
+    Defer(ManuallyDrop::new(f))
+}
 pub(crate) struct Defer<F: FnOnce()>(ManuallyDrop<F>);
 impl<F: FnOnce()> Drop for Defer<F> {
     fn drop(&mut self) {
         unsafe { ManuallyDrop::take(&mut self.0)() }
     }
 }
-/// Registers callbacks when exiting the current scope.
-pub(crate) fn defer<F: FnOnce()>(f: F) -> Defer<F> {
-    Defer(ManuallyDrop::new(f))
-}
 
 #[allow(clippy::items_after_test_module)]
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod test_utils {
     use core::mem::MaybeUninit;
     use std::any::Any;
