@@ -34,7 +34,7 @@ keywords = ["async", "trait", "impl"]
 categories = ["asynchronous", "no-std", "rust-patterns"]
 
 [features]
-default = ["alloc"]
+default = ["alloc", "macros"]
 alloc = []
 macros = ["dep:dynify-macros"]
 smallvec = ["dep:smallvec"]
