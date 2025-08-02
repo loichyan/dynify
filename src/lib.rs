@@ -16,6 +16,11 @@ mod container;
 mod function;
 mod receiver;
 
+#[cfg(feature = "macros")]
+#[doc(inline)]
+#[cfg_attr(docsrs, doc(cfg(feature = "macros")))]
+pub use dynify_macros::dynify;
+
 #[doc(inline)]
 #[cfg(feature = "alloc")]
 pub use self::container::Boxed;

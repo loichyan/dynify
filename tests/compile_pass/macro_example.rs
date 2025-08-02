@@ -1,4 +1,4 @@
-#[dynify_macros::dynify]
+#[dynify::dynify]
 pub trait MyAsync<'x, T> {
     type A<'a, B: 'a, C: 'a>
     where
