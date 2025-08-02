@@ -21,18 +21,10 @@ use std::future::Future;
 use std::mem::MaybeUninit;
 
 // `AsyncRead` is dyn incompatible :(
-trait AsyncRead {
+// With dynify, we can create a dyn compatible variant for `AsyncRead` in one line :)
+#[dynify::dynify]
+trait AsyncRead { // By default, another trait prefixed with `Dyn` is generated.
     async fn read_to_string(&mut self) -> String;
-}
-
-// With dynify, we can create a dyn compatible variant for `AsyncRead` in a few lines :)
-trait DynAsyncRead {
-    fn read_to_string(&mut self) -> Fn!(&mut Self => dyn '_ + Future<Output = String>);
-}
-impl<T: AsyncRead> DynAsyncRead for T {
-    fn read_to_string(&mut self) -> Fn!(&mut Self => dyn '_ + Future<Output = String>) {
-        from_fn!(T::read_to_string, self)
-    }
 }
 
 // Now we can use dynamic dispatched `AsyncRead`!
