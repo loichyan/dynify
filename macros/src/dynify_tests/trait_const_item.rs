@@ -12,3 +12,4 @@ trait DynTrait {
 impl<TraitImplementor: Trait> DynTrait for TraitImplementor {
     const KST: usize = TraitImplementor::KST;
 }
+fn main() {}

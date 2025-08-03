@@ -12,3 +12,4 @@ trait DynTrait {
 impl<TraitImplementor: Trait> DynTrait for TraitImplementor {
     type Type = TraitImplementor::Type;
 }
+fn main() {}

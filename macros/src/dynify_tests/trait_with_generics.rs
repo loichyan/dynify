@@ -56,3 +56,4 @@ impl<
         TraitImplementor::fun(this).await
     }
 }
+fn main() {}

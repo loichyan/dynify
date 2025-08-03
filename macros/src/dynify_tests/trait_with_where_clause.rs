@@ -59,3 +59,4 @@ where
         TraitImplementor::fun(this).await
     }
 }
+fn main() {}

@@ -6,3 +6,4 @@ trait Trait {}
 trait DynTrait {}
 #[allow(clippy::type_complexity)]
 impl<TraitImplementor: Trait> DynTrait for TraitImplementor {}
+fn main() {}

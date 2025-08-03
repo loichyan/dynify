@@ -31,3 +31,4 @@ impl<TraitImplementor: Trait> MyDynTrait for TraitImplementor {
         ::dynify::from_fn!(TraitImplementor::test, self,)
     }
 }
+fn main() {}

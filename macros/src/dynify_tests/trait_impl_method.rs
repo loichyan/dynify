@@ -1,7 +1,7 @@
 /* This file is @generated for testing purpose */
 #[allow(async_fn_in_trait)]
 trait Trait {
-    fn test(&self, arg: &str) -> impl Any;
+    fn test(&self, arg: &str) -> impl std::any::Any;
 }
 #[allow(async_fn_in_trait)]
 #[allow(clippy::type_complexity)]
@@ -9,7 +9,10 @@ trait DynTrait {
     fn test<'this, 'arg, 'dynify>(
         &'this self,
         arg: &'arg str,
-    ) -> ::dynify::r#priv::Fn<(::dynify::r#priv::RefSelf, &'arg str), dyn 'dynify + Any>
+    ) -> ::dynify::r#priv::Fn<
+        (::dynify::r#priv::RefSelf, &'arg str),
+        dyn 'dynify + std::any::Any,
+    >
     where
         'this: 'dynify,
         'arg: 'dynify,
@@ -20,7 +23,10 @@ impl<TraitImplementor: Trait> DynTrait for TraitImplementor {
     fn test<'this, 'arg, 'dynify>(
         &'this self,
         arg: &'arg str,
-    ) -> ::dynify::r#priv::Fn<(::dynify::r#priv::RefSelf, &'arg str), dyn 'dynify + Any>
+    ) -> ::dynify::r#priv::Fn<
+        (::dynify::r#priv::RefSelf, &'arg str),
+        dyn 'dynify + std::any::Any,
+    >
     where
         'this: 'dynify,
         'arg: 'dynify,
@@ -29,3 +35,4 @@ impl<TraitImplementor: Trait> DynTrait for TraitImplementor {
         ::dynify::from_fn!(TraitImplementor::test, self, arg,)
     }
 }
+fn main() {}

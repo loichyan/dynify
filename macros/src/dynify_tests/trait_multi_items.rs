@@ -4,11 +4,11 @@ trait Trait {
     const KST1: usize;
     const KST2: bool;
     type Type1: 'static;
-    type Type2: Future<Output = ()>;
+    type Type2: core::future::Future<Output = ()>;
     async fn method1(&self) -> Vec<u8>;
     fn method2(&self);
     async fn fun1(this: &Self) -> String;
-    fn fun2(this: &Self) -> impl Future<Output = String>;
+    fn fun2(this: &Self) -> impl core::future::Future<Output = String>;
 }
 #[allow(async_fn_in_trait)]
 #[allow(clippy::type_complexity)]
@@ -16,7 +16,7 @@ trait DynTrait {
     const KST1: usize;
     const KST2: bool;
     type Type1: 'static;
-    type Type2: Future<Output = ()>;
+    type Type2: core::future::Future<Output = ()>;
     fn method1<'this, 'dynify>(
         &'this self,
     ) -> ::dynify::r#priv::Fn<
@@ -28,7 +28,7 @@ trait DynTrait {
         Self: 'dynify;
     fn method2(&self);
     async fn fun1(this: &Self) -> String;
-    fn fun2(this: &Self) -> impl Future<Output = String>;
+    fn fun2(this: &Self) -> impl core::future::Future<Output = String>;
 }
 #[allow(clippy::type_complexity)]
 impl<TraitImplementor: Trait> DynTrait for TraitImplementor {
@@ -54,7 +54,8 @@ impl<TraitImplementor: Trait> DynTrait for TraitImplementor {
     async fn fun1(this: &Self) -> String {
         TraitImplementor::fun1(this).await
     }
-    fn fun2(this: &Self) -> impl Future<Output = String> {
+    fn fun2(this: &Self) -> impl core::future::Future<Output = String> {
         TraitImplementor::fun2(this)
     }
 }
+fn main() {}

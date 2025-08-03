@@ -14,3 +14,4 @@ impl<TraitImplementor: Trait> DynTrait for TraitImplementor {
         TraitImplementor::test(this, arg).await
     }
 }
+fn main() {}

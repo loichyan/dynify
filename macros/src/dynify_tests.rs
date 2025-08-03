@@ -24,7 +24,7 @@ define_macro_tests!(
     )]
     #[case::trait_impl_method(
         quote!(),
-        quote!(trait Trait { fn test(&self, arg: &str) -> impl Any; }),
+        quote!(trait Trait { fn test(&self, arg: &str) -> impl std::any::Any; }),
     )]
     #[case::trait_async_fn(
         quote!(),
@@ -32,11 +32,11 @@ define_macro_tests!(
     )]
     #[case::trait_impl_fn(
         quote!(),
-        quote!(trait Trait { fn test(this: &Self, arg: &str) -> impl Any; }),
+        quote!(trait Trait { fn test(this: &Self, arg: &str) -> impl std::any::Any; }),
     )]
     #[case::trait_regular_fn(
         quote!(),
-        quote!(trait Trait { fn test(arg: &Self, arg: &str); }),
+        quote!(trait Trait { fn test(this: &Self, arg: &str); }),
     )]
     #[case::trait_multi_items(
         quote!(),
@@ -44,11 +44,11 @@ define_macro_tests!(
             const KST1: usize;
             const KST2: bool;
             type Type1: 'static;
-            type Type2: Future<Output = ()>;
+            type Type2: core::future::Future<Output = ()>;
             async fn method1(&self) -> Vec<u8>;
             fn method2(&self);
             async fn fun1(this: &Self) -> String;
-            fn fun2(this: &Self) -> impl Future<Output = String>;
+            fn fun2(this: &Self) -> impl core::future::Future<Output = String>;
         }),
     )]
     // === Traits with Generics === //
@@ -87,7 +87,8 @@ define_macro_tests!(
     )]
     fn ui(#[case] test_name: &str, #[case] attr: TokenStream, #[case] input: TokenStream) {
         let output = expand(attr, input).unwrap();
-        let output = prettyplease::unparse(&syn::parse_quote!(#output));
+        // Append `fn main() {}` so that they can pass compile tests
+        let output = prettyplease::unparse(&syn::parse_quote!(#output fn main() {}));
         validate_macro_output(&output, &format!("src/dynify_tests/{}.rs", test_name));
     }
 );

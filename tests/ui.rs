@@ -6,4 +6,5 @@ fn compile_tests() {
         t.compile_fail("tests/compile_fail/*.rs"); //  pinned to avoid UI breakages
     }
     t.pass("tests/compile_pass/*.rs");
+    t.pass("macros/src/dynify_tests/*.rs");
 }
