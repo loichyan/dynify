@@ -100,9 +100,9 @@ fn quote_transformed_body(
         TransformResult::Noop => {
             quote!(#target::#ident(#(#arg_idents)*))
         },
-        // TODO: expand macro calls
         TransformResult::Function | TransformResult::Method => {
-            quote!(::dynify::from_fn!(#target::#ident, #(#arg_idents)*))
+            let recv = sig.receiver().map(|r| &r.self_token);
+            quote!(::dynify::__from_fn!([#recv] #target::#ident, #(#arg_idents)*))
         },
     }
 }
