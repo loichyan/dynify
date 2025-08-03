@@ -80,6 +80,11 @@ define_macro_tests!(
         quote!(),
         quote!(trait Trait { async fn test(self: MySelf); }),
     )]
+    // == Traits with Customizations == //
+    #[case::trait_with_name(
+        quote!(MyDynTrait),
+        quote!(trait Trait { async fn test(&self); }),
+    )]
     fn ui(#[case] test_name: &str, #[case] attr: TokenStream, #[case] input: TokenStream) {
         let output = expand(attr, input).unwrap();
         let output = prettyplease::unparse(&syn::parse_quote!(#output));

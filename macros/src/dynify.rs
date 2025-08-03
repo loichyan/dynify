@@ -5,13 +5,13 @@ use syn::{parse_quote_spanned, Error, FnArg, Ident, Lifetime, Result, ReturnType
 use crate::lifetime::TraitContext;
 use crate::utils::*;
 
-pub fn expand(_attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
+pub fn expand(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let mut dyn_trait = syn::parse2::<syn::ItemTrait>(input.clone())?;
     let mut trait_impl_items = TokenStream::new();
 
-    // TODO: support name customization
     // TODO: support non-trait items
-    let dyn_trait_name = format_ident!("Dyn{}", dyn_trait.ident);
+    let dyn_trait_name = syn::parse2::<Option<Ident>>(attr)?
+        .unwrap_or_else(|| format_ident!("Dyn{}", dyn_trait.ident));
     let trait_name = std::mem::replace(&mut dyn_trait.ident, dyn_trait_name);
     let dyn_trait_name = &dyn_trait.ident;
     let impl_target = format_ident!("{}Implementor", trait_name);
