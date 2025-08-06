@@ -16,9 +16,9 @@ mod container;
 mod function;
 mod receiver;
 
-#[cfg(feature = "macros")]
-#[doc(inline)]
+#[doc = include_str!("dynify.md") ]
 #[cfg_attr(docsrs, doc(cfg(feature = "macros")))]
+#[cfg(feature = "macros")]
 pub use dynify_macros::dynify;
 
 #[doc(inline)]

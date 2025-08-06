@@ -14,7 +14,6 @@ pub(crate) fn infer_receiver(recv: &syn::Receiver) -> Option<Ident> {
         };
     }
 
-    // TODO: ensure inner receiver type is Self
     let ty = as_variant!(&*recv.ty, Type::Path)
         .map(|ty| &ty.path)
         // Extract the inner type of `Pin<T>`
