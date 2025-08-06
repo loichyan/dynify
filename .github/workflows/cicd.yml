@@ -125,9 +125,36 @@ jobs:
           files: lcov.info
           fail_ci_if_error: true
 
+  changelog:
+    name: Update changelog
+    needs: [check]
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: write # need to commit changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v4
+        with: { ref: "${{ github.head_ref }}" }
+
+      - name: Doc | Update changelog
+        run: |
+          sed -i \
+            -e 's/{{PRNUM}}/${{ github.event.number }}/g' \
+            -e "s/{{DATE}}/$(date -u +'%Y-%m-%d')/g" \
+            CHANGELOG.md
+
+      - name: Post Doc | Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "docs: expand variables in changelog"
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
+          commit_author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+
   release:
     name: Create GitHub release
-    needs: [metadata, check]
+    needs: [check, changelog]
     if: startsWith(github.head_ref, 'release/')
     permissions:
       contents: write # Need to update release

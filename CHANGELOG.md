@@ -7,16 +7,20 @@ and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!--
-Here's a template for each release section. This file should only include changes that are
-noticeable to end-users since the last release. For developers, this project follows
-[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) to track changes.
+Here's a template for each release section. This file should only include updates
+that are noticeable to end users between two releases. For developers, this project
+follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 
 ## [1.0.0] - YYYY-MM-DD
 
 ### Added
 
-- (**BREAKING**) Always place breaking changes at the top.
-- Append other changes in chronological order under the relevant subsections.
+- (**breaking**) Always place breaking changes at the top of each subsection.
+- Append other changes in chronological order under the appropriate subsection.
+- Additionally, you may use `{{variable name}}` as a placeholder for the value
+  of a named variable, which includes:
+  - `PRNUM`: the number of the pull request
+  - `DATE`: the date in `YYYY-MM-DD` format whenever the pull request is updated
 
 ### Changed
 
@@ -58,7 +62,7 @@ changes.
 
 ### Removed
 
-- (**BREAKING**) Remove `Emplace` implementations for `&mut [u8; N]`,
+- (**breaking**) Remove `Emplace` implementations for `&mut [u8; N]`,
   `&mut [u8]` and `&mut Vec<u8>` ([#2]).
 
 ### Fixed
