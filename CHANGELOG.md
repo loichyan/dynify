@@ -2,8 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
-adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!--
 Here's a template for each release section. This file should only include changes that are
@@ -42,8 +43,9 @@ noticeable to end-users since the last release. For developers, this project fol
 
 ## [0.1.0] - 2025-07-06
 
-The main purpose of this release is to address unsoundness and introduce breaking changes early to
-prevent further issues. Consequently, it includes few changes.
+The main purpose of this release is to address unsoundness and introduce
+breaking changes early to prevent further issues. Consequently, it includes few
+changes.
 
 ### Added
 
@@ -56,8 +58,8 @@ prevent further issues. Consequently, it includes few changes.
 
 ### Removed
 
-- (**BREAKING**) Remove `Emplace` implementations for `&mut [u8; N]`, `&mut [u8]` and `&mut Vec<u8>`
-  ([#2]).
+- (**BREAKING**) Remove `Emplace` implementations for `&mut [u8; N]`,
+  `&mut [u8]` and `&mut Vec<u8>` ([#2]).
 
 ### Fixed
 
@@ -70,8 +72,9 @@ prevent further issues. Consequently, it includes few changes.
 
 ## [0.0.1] - 2025-07-05
 
-🎉 Initial release. Check out [README](https://github.com/loichyan/dynify/blob/v0.0.1/README.md) for
-more details.
+🎉 Initial release. Check out
+[README](https://github.com/loichyan/dynify/blob/v0.0.1/README.md) for more
+details.
 
 [0.0.1]: https://github.com/loichyan/dynify/releases/tag/v0.0.1
 [0.1.0]: https://github.com/loichyan/dynify/releases/tag/v0.1.0
