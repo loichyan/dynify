@@ -1,13 +1,13 @@
 [package]
 name = "dynify-macros"
-version = "0.0.0"
+version.workspace = true
 authors.workspace = true
 license.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
 repository.workspace = true
-description = "Procedural macros for dynify"
+description = "Helpful procedural macros for dynify"
 
 [lib]
 proc-macro = true
