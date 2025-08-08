@@ -1,5 +1,5 @@
 error[E0521]: borrowed data escapes outside of closure
- --> tests/ui/from_closure_leak_slot_fail.rs:4:9
+ --> tests/compile_fail/from_closure_leak_slot.rs:4:9
   |
 2 |     let mut slot_leaked = None;
   |         --------------- `slot_leaked` declared here, outside of the closure body

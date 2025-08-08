@@ -1,38 +1,59 @@
-[package]
-name = "dynify"
-version = "0.1.0"
+[workspace]
+members = ["macros"]
+
+[workspace.package]
 authors = ["Loi Chyan <loichyan@foxmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 rust-version = "1.80"
-
 repository = "https://github.com/loichyan/dynify"
-description = "Add dyn compatible variant to you async trait"
+
+[workspace.dependencies]
+fastrand = "2.3.0"
+rstest = { version = "0.25.0", default-features = false }
+
+[workspace.lints.rust]
+unexpected_cfgs.level = "warn"
+unexpected_cfgs.check-cfg = ["cfg(coverage)", "cfg(coverage_nightly)"]
+unknown_lints = "allow"
+
+[workspace.lints.clippy]
+uninlined_format_args = "allow"
+
+[package]
+name = "dynify"
+version = "0.1.0"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+repository.workspace = true
+description = "Add dyn compatible variant to your async trait"
 keywords = ["async", "trait", "impl"]
 categories = ["asynchronous", "no-std", "rust-patterns"]
 
 [features]
-default = ["alloc"]
+default = ["alloc", "macros"]
 alloc = []
+macros = ["dep:dynify-macros"]
 smallvec = ["dep:smallvec"]
 
 [dependencies]
+dynify-macros = { path = "./macros", optional = true }
 smallvec = { version = "1", optional = true }
 
 [dev-dependencies]
-fastrand = "2.3.0"
+fastrand.workspace = true
 pollster = { version = "0.4.0", features = ["macro"] }
-rstest = { version = "0.25.0", default-features = false }
+rstest.workspace = true
+rustversion = "1.0.21"
+trait-variant = "0.1.2"
 trybuild = "1.0.105"
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-[lints.rust]
-unexpected_cfgs.level = "warn"
-unexpected_cfgs.check-cfg = ["cfg(coverage)", "cfg(coverage_nightly)"]
-unknown_lints = "allow"
-
-[lints.clippy]
-uninlined_format_args = "allow"
+[lints]
+workspace = true

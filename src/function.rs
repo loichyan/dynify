@@ -27,7 +27,7 @@ unsafe impl<Args, Ret: ?Sized> Construct for Fn<Args, Ret> {}
 
 /// A helper struct to display friendly errors.
 ///
-/// For the emitted errors, see `tests/ui/from_fn_with_closure_fail.stderr`.
+/// For the emitted errors, see `tests/compile_fail/from_fn_with_closure.stderr`.
 pub struct MustNotBeClosure;
 
 /// Creates a constructor for the return type of the specified function.

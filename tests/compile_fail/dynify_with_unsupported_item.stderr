@@ -1,0 +1,11 @@
+error: non-trait item is not supported yet
+ --> tests/compile_fail/dynify_with_unsupported_item.rs:2:1
+  |
+2 | fn test() {}
+  | ^^^^^^^^^^^^
+
+error: non-trait item is not supported yet
+ --> tests/compile_fail/dynify_with_unsupported_item.rs:5:1
+  |
+5 | opaque_trait!();
+  | ^^^^^^^^^^^^^^^^

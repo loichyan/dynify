@@ -2,8 +2,8 @@ Add dyn compatible variant to your async trait with 🦕 dynify!
 
 ## The problem
 
-Currently, dynamic dispatch on AFIT (Async Fn In Trait) is not possible in Rust. For the following
-code:
+Currently, dynamic dispatch on AFIT (Async Fn In Trait) is not possible in Rust.
+For the following code:
 
 ```rust,compile_fail
 trait AsyncRead {
@@ -30,8 +30,8 @@ note: for a trait to be "object safe" it needs to allow building a vtable to all
 ## The solution
 
 dynify implements partial features of the experimental
-[in-place initialization proposal](https://github.com/rust-lang/lang-team/issues/336), which makes
-it possible to create a dyn compatible variant for `AsyncRead`:
+[in-place initialization proposal](https://github.com/rust-lang/lang-team/issues/336),
+which makes it possible to create a dyn compatible variant for `AsyncRead`:
 
 ```rust
 # trait AsyncRead {
@@ -84,14 +84,17 @@ async fn dynamic_dispatch(reader: &mut dyn DynAsyncRead) {
 
 ## Why not async-trait?
 
-[async-trait](https://crates.io/crates/async-trait) is the most popular crate for the aforementioned
-problem. However, it may not play well with limited environments such as kernels or embedded
-systems, as it transforms every `async fn()` into `fn() -> Box<dyn Future>`, requiring heap
-allocation. dynify doesn't have such limitation, since you can decide where to place trait objects.
-Additionally, you can opt out of the `alloc` feature to completely turn off heap allocation.
+[async-trait](https://crates.io/crates/async-trait) is the most popular crate
+for the aforementioned problem. However, it may not play well with limited
+environments such as kernels or embedded systems, as it transforms every
+`async fn()` into `fn() -> Box<dyn Future>`, requiring heap allocation. dynify
+doesn't have such limitation, since you can decide where to place trait objects.
+Additionally, you can opt out of the `alloc` feature to completely turn off heap
+allocation.
 
-Furthermore, dynify offers some unique features compared to async-trait. One of them, as shown in
-the example below, is the ability to reuse buffers across different trait objects:
+Furthermore, dynify offers some unique features compared to async-trait. One of
+them, as shown in the example below, is the ability to reuse buffers across
+different trait objects:
 
 ```rust
 # use dynify::{from_fn, Dynify, Fn, PinDynify};
@@ -124,14 +127,15 @@ async fn process_stream(stream: &mut dyn DynStream<Item = char>) {
 }
 ```
 
-Nevertheless, the differences can be rather trivial in many cases. If you don't have these concerns,
-it's better to go with the battle tested async-trait.
+Nevertheless, the differences can be rather trivial in many cases. If you don't
+have these concerns, it's better to go with the battle tested async-trait.
 
 ## Features
 
-- **alloc**: Enable container implementations for types that require heap allocation such as `Box`
-  and `Vec`.
-- **smallvec**: Enable container implementations for [`SmallVec`], a drop-in replacement for
-  `[u8; N] + Vec<u8>`.
+- **alloc**: Enable container implementations for types that require heap
+  allocation such as `Box` and `Vec`.
+- **smallvec**: Enable container implementations for [`SmallVec`], a drop-in
+  replacement for `[u8; N] + Vec<u8>`.
+- **macros**: Enable helpful procedural macros.
 
 [`SmallVec`]: smallvec::SmallVec
