@@ -53,7 +53,7 @@ where
         'life2: 'dynify,
         Self: 'dynify,
     {
-        ::dynify::from_fn!(TraitImplementor::method, self,)
+        ::dynify::__from_fn!([self] TraitImplementor::method, self,)
     }
     async fn fun(this: &Self) {
         TraitImplementor::fun(this).await

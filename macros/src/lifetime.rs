@@ -31,7 +31,7 @@ pub(crate) fn inject_output_lifetime(
             FnArg::Typed(a) => as_variant!(&*a.pat, syn::Pat::Ident)
                 .map(|p| &p.ident)
                 .ok_or_else(|| {
-                    syn::Error::new(a.span(), "typed argument must be a valid identifier")
+                    syn::Error::new_spanned(&a.pat, "typed argument must be a valid identifier")
                 })?
                 .clone(),
         };

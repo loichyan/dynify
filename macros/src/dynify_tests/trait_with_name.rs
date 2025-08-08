@@ -28,7 +28,7 @@ impl<TraitImplementor: Trait> MyDynTrait for TraitImplementor {
         'this: 'dynify,
         Self: 'dynify,
     {
-        ::dynify::from_fn!(TraitImplementor::test, self,)
+        ::dynify::__from_fn!([self] TraitImplementor::test, self,)
     }
 }
 fn main() {}

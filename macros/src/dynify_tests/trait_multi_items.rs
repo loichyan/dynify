@@ -46,7 +46,7 @@ impl<TraitImplementor: Trait> DynTrait for TraitImplementor {
         'this: 'dynify,
         Self: 'dynify,
     {
-        ::dynify::from_fn!(TraitImplementor::method1, self,)
+        ::dynify::__from_fn!([self] TraitImplementor::method1, self,)
     }
     fn method2(&self) {
         TraitImplementor::method2(self)

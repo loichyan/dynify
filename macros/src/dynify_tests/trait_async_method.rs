@@ -32,7 +32,7 @@ impl<TraitImplementor: Trait> DynTrait for TraitImplementor {
         'arg: 'dynify,
         Self: 'dynify,
     {
-        ::dynify::from_fn!(TraitImplementor::test, self, arg,)
+        ::dynify::__from_fn!([self] TraitImplementor::test, self, arg,)
     }
 }
 fn main() {}

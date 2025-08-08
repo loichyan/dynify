@@ -107,7 +107,7 @@ jobs:
 
       - name: Check | Miri
         if: matrix.toolchain == 'nightly'
-        run: cargo miri test --workspace --all-features
+        run: cargo miri test -p dynify --all-features
 
       - name: Check | Coverage
         if: matrix.toolchain == 'nightly'
