@@ -1,0 +1,5 @@
+error: typed argument must be a valid identifier
+ --> tests/compile_fail/dynify_with_non_ident_args.rs:3:26
+  |
+3 |     async fn test(&self, (arg): String, NewType(inner): NewType);
+  |                          ^^^^^

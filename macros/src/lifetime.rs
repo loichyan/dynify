@@ -5,9 +5,7 @@ use quote::format_ident;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
-use syn::{
-    parse_quote, parse_quote_spanned, visit_mut, Error, FnArg, Ident, Lifetime, Result, Token,
-};
+use syn::{parse_quote, parse_quote_spanned, visit_mut, FnArg, Ident, Lifetime, Result, Token};
 
 pub(crate) struct TraitContext<'a> {
     pub generics: &'a syn::Generics,
@@ -32,7 +30,9 @@ pub(crate) fn inject_output_lifetime(
             FnArg::Receiver(recv) => Ident::new("this", recv.self_token.span),
             FnArg::Typed(a) => as_variant!(&*a.pat, syn::Pat::Ident)
                 .map(|p| &p.ident)
-                .ok_or_else(|| Error::new(a.span(), "typed argument must be a valid identifier"))?
+                .ok_or_else(|| {
+                    syn::Error::new(a.span(), "typed argument must be a valid identifier")
+                })?
                 .clone(),
         };
         let mut coll = LifetimeCollector {

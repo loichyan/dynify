@@ -74,12 +74,6 @@ define_macro_tests!(
             async fn fun(this: &Self);
         }),
     )]
-    // === Failures === //
-    #[should_panic = "cannot determine receiver type"]
-    #[case::fail_with_unknown_receiver(
-        quote!(),
-        quote!(trait Trait { async fn test(self: MySelf); }),
-    )]
     // == Traits with Customizations == //
     #[case::trait_with_name(
         quote!(MyDynTrait),

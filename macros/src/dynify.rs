@@ -1,15 +1,17 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
-use syn::{parse_quote_spanned, Error, FnArg, Ident, Lifetime, Result, ReturnType, Token, Type};
+use syn::{parse_quote_spanned, FnArg, Ident, Lifetime, Result, ReturnType, Token, Type};
 
 use crate::lifetime::TraitContext;
 use crate::utils::*;
 
 pub fn expand(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
-    let mut dyn_trait = syn::parse2::<syn::ItemTrait>(input.clone())?;
+    let input_item = syn::parse2::<syn::Item>(input.clone())?;
+    // TODO: support non-trait items
+    let mut dyn_trait = as_variant!(input_item, syn::Item::Trait)
+        .ok_or_else(|| syn::Error::new_spanned(&input, "non-trait item is not supported yet"))?;
     let mut trait_impl_items = TokenStream::new();
 
-    // TODO: support non-trait items
     let dyn_trait_name = syn::parse2::<Option<Ident>>(attr)?
         .unwrap_or_else(|| format_ident!("Dyn{}", dyn_trait.ident));
     let trait_name = std::mem::replace(&mut dyn_trait.ident, dyn_trait_name);
@@ -142,9 +144,10 @@ fn transform_fn(
         return Ok(TransformResult::Noop);
     }
 
-    let sealed_recv = match sig.receiver().map(crate::receiver::infer_receiver) {
-        Some(Some(r)) => Some(r),
-        Some(None) => return Err(Error::new(fn_span, "cannot determine receiver type")),
+    let sealed_recv = match sig.receiver() {
+        Some(r) => crate::receiver::infer_receiver(r)
+            .ok_or_else(|| syn::Error::new(r.self_token.span, "cannot determine receiver type"))
+            .map(Some)?,
         None if force => None,
         None => return Ok(TransformResult::Noop),
     };
