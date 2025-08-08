@@ -39,7 +39,7 @@ dependencies = [
 
 [[package]]
 name = "dynify-macros"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "fastrand",
  "pretty_assertions",
