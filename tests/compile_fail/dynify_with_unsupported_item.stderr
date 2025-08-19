@@ -1,11 +1,17 @@
-error: non-trait item is not supported yet
- --> tests/compile_fail/dynify_with_unsupported_item.rs:2:1
+error: input function must return an `impl` type
+ --> tests/compile_fail/dynify_with_unsupported_item.rs:2:4
   |
-2 | fn test() {}
-  | ^^^^^^^^^^^^
+2 | fn test1() {}
+  |    ^^^^^
 
-error: non-trait item is not supported yet
- --> tests/compile_fail/dynify_with_unsupported_item.rs:5:1
+error: input function must return an `impl` type
+ --> tests/compile_fail/dynify_with_unsupported_item.rs:5:4
   |
-5 | opaque_trait!();
+5 | fn test2() -> FakeImpl {}
+  |    ^^^^^
+
+error: expected a `fn` or `trait` item
+ --> tests/compile_fail/dynify_with_unsupported_item.rs:8:1
+  |
+8 | opaque_trait!();
   | ^^^^^^^^^^^^^^^^

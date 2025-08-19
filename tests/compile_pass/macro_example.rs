@@ -14,4 +14,9 @@ pub trait MyAsync<'x, T> {
     fn foo6<'a>(&self, s: &str) -> impl 'a + Send + std::any::Any;
 }
 
+#[dynify::dynify]
+pub async fn my_func(_id: &str) -> Vec<u8> {
+    todo!()
+}
+
 fn main() {}

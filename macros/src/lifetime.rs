@@ -5,7 +5,7 @@ use quote::format_ident;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
-use syn::{parse_quote, parse_quote_spanned, visit_mut, FnArg, Ident, Lifetime, Result, Token};
+use syn::{parse_quote, parse_quote_spanned, visit_mut, FnArg, Ident, Lifetime, Result};
 
 pub(crate) struct TraitContext<'a> {
     pub generics: &'a syn::Generics,
@@ -210,7 +210,7 @@ impl visit_mut::VisitMut for LifetimeCollector<'_> {
 
 fn default_where_clause(where_clause: &mut Option<syn::WhereClause>) -> &mut syn::WhereClause {
     where_clause.get_or_insert_with(|| syn::WhereClause {
-        where_token: <Token![where]>::default(),
+        where_token: NewToken![where],
         predicates: Punctuated::new(),
     })
 }

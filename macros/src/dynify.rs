@@ -6,17 +6,32 @@ use crate::lifetime::TraitContext;
 use crate::utils::*;
 
 pub fn expand(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
+    let rename = syn::parse2::<Option<Ident>>(attr)?;
     let input_item = syn::parse2::<syn::Item>(input.clone())?;
-    // TODO: support non-trait items
-    let mut dyn_trait = as_variant!(input_item, syn::Item::Trait)
-        .ok_or_else(|| syn::Error::new_spanned(&input, "non-trait item is not supported yet"))?;
-    let mut trait_impl_items = TokenStream::new();
+    let output = match input_item {
+        syn::Item::Trait(t) => expand_trait(rename, t)?,
+        syn::Item::Fn(f) => expand_fn(rename, f)?,
+        item => {
+            return Err(syn::Error::new_spanned(
+                &item,
+                "expected a `fn` or `trait` item",
+            ))
+        },
+    };
+    Ok(quote!(
+        #[allow(async_fn_in_trait)]
+        #input
+        #output
+    ))
+}
 
-    let dyn_trait_name = syn::parse2::<Option<Ident>>(attr)?
-        .unwrap_or_else(|| format_ident!("Dyn{}", dyn_trait.ident));
-    let trait_name = std::mem::replace(&mut dyn_trait.ident, dyn_trait_name);
+fn expand_trait(rename: Option<Ident>, mut dyn_trait: syn::ItemTrait) -> Result<TokenStream> {
+    let dyn_trait_name = rename.unwrap_or_else(|| format_ident!("Dyn{}", dyn_trait.ident));
+    let input_trait_name = std::mem::replace(&mut dyn_trait.ident, dyn_trait_name);
     let dyn_trait_name = &dyn_trait.ident;
-    let impl_target = format_ident!("{}Implementor", trait_name);
+
+    let impl_target = format_ident!("{}Implementor", input_trait_name);
+    let mut trait_impl_items = TokenStream::new();
 
     let (_, ty_generics, where_clause) = dyn_trait.generics.split_for_impl();
     for item in dyn_trait.items.iter_mut() {
@@ -51,11 +66,17 @@ pub fn expand(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
                 let context = TraitContext {
                     generics: &dyn_trait.generics,
                 };
-                let transformed = transform_fn(&context, sig, false)?;
+                let transformed = transform_fn(Some(&context), sig, false)?;
                 // TODO: support `#[dynify(skip)]`
+                // TODO: support nested `#[dynify]`
                 let attrs_outer = attrs.outer();
                 let attrs_inner = attrs.inner();
-                let impl_body = quote_transformed_body(transformed, &impl_target, sig);
+                let target = quote_with(|tokens| {
+                    impl_target.to_tokens(tokens);
+                    NewToken![::].to_tokens(tokens);
+                    sig.ident.to_tokens(tokens);
+                });
+                let impl_body = quote_transformed_body(transformed, &target, sig);
                 quote!(#(#attrs_outer)* #sig { #(#attrs_inner)* #impl_body })
             },
             _ => continue,
@@ -66,26 +87,35 @@ pub fn expand(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let impl_generics = quote_impl_generics(&dyn_trait.generics);
     Ok(quote!(
         #[allow(async_fn_in_trait)]
-        #input
-
-        #[allow(async_fn_in_trait)]
         #[allow(clippy::type_complexity)]
         #dyn_trait
 
         #[allow(clippy::type_complexity)]
-        impl<#impl_generics #impl_target: #trait_name #ty_generics>
+        impl<#impl_generics #impl_target: #input_trait_name #ty_generics>
         #dyn_trait_name #ty_generics for #impl_target
         #where_clause { #trait_impl_items }
     ))
 }
 
+fn expand_fn(rename: Option<Ident>, mut dyn_fn: syn::ItemFn) -> Result<TokenStream> {
+    let syn::ItemFn { sig, attrs, .. } = &mut dyn_fn;
+
+    let dyn_fn_name = rename.unwrap_or_else(|| format_ident!("dyn_{}", sig.ident));
+    let input_fn_name = std::mem::replace(&mut sig.ident, dyn_fn_name);
+
+    let transformed = transform_fn(None, sig, true)?;
+    let attrs_outer = attrs.outer();
+    let attrs_inner = attrs.inner();
+    let impl_body = quote_transformed_body(transformed, &input_fn_name, sig);
+    Ok(quote!(#(#attrs_outer)* #sig { #(#attrs_inner)* #impl_body }))
+}
+
 /// Generates implementation body for a transformed function.
 fn quote_transformed_body(
     transformed: TransformResult,
-    target: &Ident,
+    target: &dyn ToTokens,
     sig: &syn::Signature,
 ) -> impl ToTokens {
-    let ident = &sig.ident;
     let arg_idents = sig.inputs.pairs().map(|p| {
         quote_with(move |tokens| {
             match p.value() {
@@ -95,16 +125,17 @@ fn quote_transformed_body(
             p.punct_or_default().to_tokens(tokens);
         })
     });
+
     match transformed {
         TransformResult::Noop if sig.asyncness.is_some() => {
-            quote!(#target::#ident(#(#arg_idents)*).await)
+            quote!(#target (#(#arg_idents)*).await)
         },
         TransformResult::Noop => {
-            quote!(#target::#ident(#(#arg_idents)*))
+            quote!(#target (#(#arg_idents)*))
         },
         TransformResult::Function | TransformResult::Method => {
             let recv = sig.receiver().map(|r| &r.self_token);
-            quote!(::dynify::__from_fn!([#recv] #target::#ident, #(#arg_idents)*))
+            quote!(::dynify::__from_fn!([#recv] #target, #(#arg_idents)*))
         },
     }
 }
@@ -135,25 +166,32 @@ enum TransformResult {
 /// Transforms the supplied function into a dynified one, returning `true` only
 /// if the transformation is successful.
 fn transform_fn(
-    context: &TraitContext,
+    context: Option<&TraitContext>,
     sig: &mut syn::Signature,
     force: bool,
 ) -> Result<TransformResult> {
     let fn_span = sig.ident.span();
     if sig.asyncness.is_none() && get_impl_type(&sig.output).is_none() {
-        return Ok(TransformResult::Noop);
+        if force {
+            return Err(syn::Error::new(
+                fn_span,
+                "input function must return an `impl` type",
+            ));
+        } else {
+            return Ok(TransformResult::Noop);
+        }
     }
 
     let sealed_recv = match sig.receiver() {
         Some(r) => crate::receiver::infer_receiver(r)
-            .ok_or_else(|| syn::Error::new(r.self_token.span, "cannot determine receiver type"))
+            .ok_or_else(|| syn::Error::new(r.self_token.span, "unsupported receiver type"))
             .map(Some)?,
         None if force => None,
         None => return Ok(TransformResult::Noop),
     };
 
     let output_lifetime = Lifetime::new("'dynify", fn_span);
-    crate::lifetime::inject_output_lifetime(Some(context), sig, &output_lifetime)?;
+    crate::lifetime::inject_output_lifetime(context, sig, &output_lifetime)?;
 
     // Infer the appropriate output type
     let input_types = quote_with(|tokens| {
@@ -174,7 +212,7 @@ fn transform_fn(
     });
     let output_type = match &sig.output {
         ReturnType::Default => ReturnType::Type(
-            <Token![->]>::default(),
+            NewToken![->],
             parse_quote_spanned!(fn_span => ::dynify::r#priv::Fn<
                 (#input_types),
                 dyn #output_lifetime + ::core::future::Future<Output = ()>

@@ -79,6 +79,19 @@ define_macro_tests!(
         quote!(MyDynTrait),
         quote!(trait Trait { async fn test(&self); }),
     )]
+    // == Functions == //
+    #[case::fn_returning_impl(
+        quote!(),
+        quote!(fn test() -> impl core::any::Any { todo!() }),
+    )]
+    #[case::fn_returning_async(
+        quote!(),
+        quote!(async fn test(_arg1: &str) -> String { todo!() }),
+    )]
+    #[case::fn_renamed(
+        quote!(my_dyn_test),
+        quote!(async fn test(_arg1: &str) -> String { todo!() }),
+    )]
     fn ui(#[case] test_name: &str, #[case] attr: TokenStream, #[case] input: TokenStream) {
         let output = expand(attr, input).unwrap();
         // Append `fn main() {}` so that they can pass compile tests

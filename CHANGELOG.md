@@ -42,10 +42,12 @@ follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 - Support downcasting a `Buffered` pointer ([#10]).
 - Support unwrapping a `Buffered` pointer ([#11]).
 - Add a helper macro `#[dynify]` for trait transformations ([#12]).
+- Support transformation of a function for `#[dynify]` ([#13])
 
 [#10]: https://github.com/loichyan/dynify/pull/10
 [#11]: https://github.com/loichyan/dynify/pull/11
 [#12]: https://github.com/loichyan/dynify/pull/12
+[#13]: https://github.com/loichyan/dynify/pull/13
 
 ## [0.1.0] - 2025-07-06
 
