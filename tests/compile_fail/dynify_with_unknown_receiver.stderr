@@ -1,4 +1,4 @@
-error: cannot determine receiver type
+error: unsupported receiver type
  --> tests/compile_fail/dynify_with_unknown_receiver.rs:3:19
   |
 3 |     async fn test(self: MySelf);

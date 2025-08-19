@@ -17,6 +17,10 @@ macro_rules! as_variant {
     };
 }
 
+macro_rules! NewToken {
+    ($($tt:tt)*) => (<::syn::Token![$($tt)*]>::default());
+}
+
 pub(crate) fn quote_with<F: Fn(&mut TokenStream)>(f: F) -> QuoteWith<F> {
     QuoteWith(f)
 }
