@@ -37,7 +37,7 @@ follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 
 ## [Unreleased]
 
-## [0.1.1] - {{DATE}}
+## [0.1.1] - 2025-08-28
 
 The major update since the previous release is the introduction of the
 `#[dynify]` macro, which can significantly reduce boilerplate codes when
