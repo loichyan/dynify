@@ -39,6 +39,11 @@ follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 
 ## [0.1.1] - {{DATE}}
 
+The major update since the previous release is the introduction of the
+`#[dynify]` macro, which can significantly reduce boilerplate codes when
+defining async traits with methods that have multiple lifetimes in their
+signatures.
+
 ### Added
 
 - Support downcasting a `Buffered` pointer ([#10]).
