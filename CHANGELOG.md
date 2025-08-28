@@ -37,6 +37,8 @@ follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 
 ## [Unreleased]
 
+## [0.1.1] - {{DATE}}
+
 ### Added
 
 - Support downcasting a `Buffered` pointer ([#10]).
@@ -86,4 +88,5 @@ details.
 
 [0.0.1]: https://github.com/loichyan/dynify/releases/tag/v0.0.1
 [0.1.0]: https://github.com/loichyan/dynify/releases/tag/v0.1.0
-[Unreleased]: https://github.com/loichyan/dynify/compare/v0.1.0..HEAD
+[0.1.1]: https://github.com/loichyan/dynify/releases/tag/v0.1.1
+[Unreleased]: https://github.com/loichyan/dynify/compare/v0.1.1..HEAD

@@ -124,7 +124,7 @@ illustrated below, you can combine `#[dynify]` with
 // no longer specify a name in `#[dynify]` because `#[trait_variant::make]`
 // will generate two traits, which leads to conflicting trait definitions.
 #[trait_variant::make(Send)]
-#[dynify::dynify]
+#[dynify::dynify] // must be put within the scope of `#[trait_variant::make]`
 trait Client {
     async fn request(&self, uri: &str) -> String;
 }
