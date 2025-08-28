@@ -80,6 +80,10 @@ define_macro_tests!(
         quote!(trait Trait { async fn test(&self); }),
     )]
     // == Functions == //
+    #[case::fn_with_vis(
+        quote!(),
+        quote!(pub(crate) fn test() -> impl core::any::Any { todo!() }),
+    )]
     #[case::fn_returning_impl(
         quote!(),
         quote!(fn test() -> impl core::any::Any { todo!() }),

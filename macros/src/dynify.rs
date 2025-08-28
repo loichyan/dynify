@@ -98,7 +98,12 @@ fn expand_trait(rename: Option<Ident>, mut dyn_trait: syn::ItemTrait) -> Result<
 }
 
 fn expand_fn(rename: Option<Ident>, mut dyn_fn: syn::ItemFn) -> Result<TokenStream> {
-    let syn::ItemFn { sig, attrs, .. } = &mut dyn_fn;
+    let syn::ItemFn {
+        vis,
+        sig,
+        attrs,
+        block: _,
+    } = &mut dyn_fn;
 
     let dyn_fn_name = rename.unwrap_or_else(|| format_ident!("dyn_{}", sig.ident));
     let input_fn_name = std::mem::replace(&mut sig.ident, dyn_fn_name);
@@ -107,7 +112,7 @@ fn expand_fn(rename: Option<Ident>, mut dyn_fn: syn::ItemFn) -> Result<TokenStre
     let attrs_outer = attrs.outer();
     let attrs_inner = attrs.inner();
     let impl_body = quote_transformed_body(transformed, &input_fn_name, sig);
-    Ok(quote!(#(#attrs_outer)* #sig { #(#attrs_inner)* #impl_body }))
+    Ok(quote!(#(#attrs_outer)* #vis #sig { #(#attrs_inner)* #impl_body }))
 }
 
 /// Generates implementation body for a transformed function.
