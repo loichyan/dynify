@@ -41,15 +41,14 @@ follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 
 The major update since the previous release is the introduction of the
 `#[dynify]` macro, which can significantly reduce boilerplate codes when
-defining async traits with methods that have multiple lifetimes in their
-signatures.
+defining async methods that have multiple lifetimes in their signatures.
 
 ### Added
 
 - Support downcasting a `Buffered` pointer ([#10]).
 - Support unwrapping a `Buffered` pointer ([#11]).
 - Add a helper macro `#[dynify]` for trait transformations ([#12]).
-- Support transformation of a function for `#[dynify]` ([#13])
+- Support transformations of function items for `#[dynify]` ([#13])
 
 [#10]: https://github.com/loichyan/dynify/pull/10
 [#11]: https://github.com/loichyan/dynify/pull/11
