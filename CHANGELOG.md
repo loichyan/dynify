@@ -48,7 +48,7 @@ defining async methods that have multiple lifetimes in their signatures.
 - Support downcasting a `Buffered` pointer ([#10]).
 - Support unwrapping a `Buffered` pointer ([#11]).
 - Add a helper macro `#[dynify]` for trait transformations ([#12]).
-- Support transformations of function items for `#[dynify]` ([#13])
+- Support transformations of function items for `#[dynify]` ([#13]).
 
 [#10]: https://github.com/loichyan/dynify/pull/10
 [#11]: https://github.com/loichyan/dynify/pull/11
