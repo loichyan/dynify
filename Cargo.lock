@@ -25,7 +25,7 @@ checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
 
 [[package]]
 name = "dynify"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "dynify-macros",
  "fastrand",
@@ -39,7 +39,7 @@ dependencies = [
 
 [[package]]
 name = "dynify-macros"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fastrand",
  "pretty_assertions",
