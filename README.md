@@ -16,7 +16,7 @@ in stable Rust, along with a set of safe APIs for creating in-place constructors
 to initialize trait objects. Here’s a quick example of how to use dynify:
 
 ```rust
-use dynify::Dynify;;
+use dynify::Dynify;
 use std::future::Future;
 use std::mem::MaybeUninit;
 
