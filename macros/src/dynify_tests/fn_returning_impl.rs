@@ -1,5 +1,4 @@
 /* This file is @generated for testing purpose */
-#[allow(async_fn_in_trait)]
 fn test() -> impl core::any::Any {
     todo!()
 }

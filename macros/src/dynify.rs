@@ -18,11 +18,7 @@ pub fn expand(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
             ))
         },
     };
-    Ok(quote!(
-        #[allow(async_fn_in_trait)]
-        #input
-        #output
-    ))
+    Ok(quote!(#input #output))
 }
 
 fn expand_trait(rename: Option<Ident>, mut dyn_trait: syn::ItemTrait) -> Result<TokenStream> {
