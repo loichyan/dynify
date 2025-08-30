@@ -1,16 +1,22 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
-use syn::{parse_quote_spanned, FnArg, Ident, Lifetime, Result, ReturnType, Token, Type};
+use syn::parse::ParseStream;
+use syn::{
+    parse_quote, parse_quote_spanned, FnArg, Ident, Lifetime, LitStr, Result, ReturnType, Token,
+    Type,
+};
 
 use crate::lifetime::TraitContext;
 use crate::utils::*;
 
 pub fn expand(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
-    let rename = syn::parse2::<Option<Ident>>(attr)?;
+    let opts = syn::parse2::<Options>(attr)?;
     let input_item = syn::parse2::<syn::Item>(input.clone())?;
+
+    let is_remote = opts.remote.is_some();
     let output = match input_item {
-        syn::Item::Trait(t) => expand_trait(rename, t)?,
-        syn::Item::Fn(f) => expand_fn(rename, f)?,
+        syn::Item::Trait(t) => expand_trait(opts, t)?,
+        syn::Item::Fn(f) => expand_fn(opts, f)?,
         item => {
             return Err(syn::Error::new_spanned(
                 &item,
@@ -18,18 +24,29 @@ pub fn expand(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
             ))
         },
     };
+
+    let input = (!is_remote).then_some(input);
     Ok(quote!(#input #output))
 }
 
-fn expand_trait(rename: Option<Ident>, mut dyn_trait: syn::ItemTrait) -> Result<TokenStream> {
-    let dyn_trait_name = rename.unwrap_or_else(|| format_ident!("Dyn{}", dyn_trait.ident));
-    let input_trait_name = std::mem::replace(&mut dyn_trait.ident, dyn_trait_name);
-    let dyn_trait_name = &dyn_trait.ident;
+fn expand_trait(opts: Options, mut dyn_trait: syn::ItemTrait) -> Result<TokenStream> {
+    let target_trait = if let Some(remote) = opts.remote {
+        remote
+    } else {
+        let dyn_trait_name = opts
+            .rename
+            .unwrap_or_else(|| format_ident!("Dyn{}", dyn_trait.ident));
+        let target_trait_name = std::mem::replace(&mut dyn_trait.ident, dyn_trait_name);
+        parse_quote!(#target_trait_name)
+    };
 
-    let impl_target = format_ident!("{}Implementor", input_trait_name);
-    let mut trait_impl_items = TokenStream::new();
-
+    let impl_target = {
+        let target_trait_name = &target_trait.segments.last().unwrap().ident;
+        format_ident!("{}Implementor", target_trait_name)
+    };
     let (_, ty_generics, where_clause) = dyn_trait.generics.split_for_impl();
+
+    let mut trait_impl_items = TokenStream::new();
     for item in dyn_trait.items.iter_mut() {
         let impl_item = match item {
             syn::TraitItem::Const(syn::TraitItemConst {
@@ -67,12 +84,12 @@ fn expand_trait(rename: Option<Ident>, mut dyn_trait: syn::ItemTrait) -> Result<
                 // TODO: support nested `#[dynify]`
                 let attrs_outer = attrs.outer();
                 let attrs_inner = attrs.inner();
-                let target = quote_with(|tokens| {
+                let target_fn = quote_with(|tokens| {
                     impl_target.to_tokens(tokens);
                     NewToken![::].to_tokens(tokens);
                     sig.ident.to_tokens(tokens);
                 });
-                let impl_body = quote_transformed_body(transformed, &target, sig);
+                let impl_body = quote_transformed_body(transformed, &target_fn, sig);
                 quote!(#(#attrs_outer)* #sig { #(#attrs_inner)* #impl_body })
             },
             _ => continue,
@@ -81,19 +98,21 @@ fn expand_trait(rename: Option<Ident>, mut dyn_trait: syn::ItemTrait) -> Result<
     }
 
     let impl_generics = quote_impl_generics(&dyn_trait.generics);
+    let dyn_trait_name = &dyn_trait.ident;
+
     Ok(quote!(
         #[allow(async_fn_in_trait)]
         #[allow(clippy::type_complexity)]
         #dyn_trait
 
         #[allow(clippy::type_complexity)]
-        impl<#impl_generics #impl_target: #input_trait_name #ty_generics>
+        impl<#impl_generics #impl_target: #target_trait #ty_generics>
         #dyn_trait_name #ty_generics for #impl_target
         #where_clause { #trait_impl_items }
     ))
 }
 
-fn expand_fn(rename: Option<Ident>, mut dyn_fn: syn::ItemFn) -> Result<TokenStream> {
+fn expand_fn(opts: Options, mut dyn_fn: syn::ItemFn) -> Result<TokenStream> {
     let syn::ItemFn {
         vis,
         sig,
@@ -101,13 +120,20 @@ fn expand_fn(rename: Option<Ident>, mut dyn_fn: syn::ItemFn) -> Result<TokenStre
         block: _,
     } = &mut dyn_fn;
 
-    let dyn_fn_name = rename.unwrap_or_else(|| format_ident!("dyn_{}", sig.ident));
-    let input_fn_name = std::mem::replace(&mut sig.ident, dyn_fn_name);
+    let target_fn = if let Some(remote) = opts.remote {
+        remote
+    } else {
+        let dyn_fn_name = opts
+            .rename
+            .unwrap_or_else(|| format_ident!("dyn_{}", sig.ident));
+        let target_fn_name = std::mem::replace(&mut sig.ident, dyn_fn_name);
+        parse_quote!(#target_fn_name)
+    };
 
     let transformed = transform_fn(None, sig, true)?;
     let attrs_outer = attrs.outer();
     let attrs_inner = attrs.inner();
-    let impl_body = quote_transformed_body(transformed, &input_fn_name, sig);
+    let impl_body = quote_transformed_body(transformed, &target_fn, sig);
     Ok(quote!(#(#attrs_outer)* #vis #sig { #(#attrs_inner)* #impl_body }))
 }
 
@@ -253,6 +279,37 @@ fn transform_fn(
 fn get_impl_type(ty: &ReturnType) -> Option<(Token![->], &syn::TypeImplTrait)> {
     as_variant!(ty, ReturnType::Type(r, t))
         .and_then(|(r, ty)| as_variant!(&**ty, Type::ImplTrait).map(|ty| (*r, ty)))
+}
+
+struct Options {
+    rename: Option<Ident>,
+    remote: Option<syn::Path>,
+}
+
+impl syn::parse::Parse for Options {
+    fn parse(input: ParseStream) -> Result<Options> {
+        syn::custom_keyword!(remote);
+
+        let mut attrs = Options {
+            rename: None,
+            remote: None,
+        };
+
+        if input.peek2(Token![=]) {
+            let remote_token = input.parse::<remote>()?;
+            let _eq_token = input.parse::<Token![=]>()?;
+            let remote = input.parse::<LitStr>()?.parse::<syn::Path>()?;
+            if remote.segments.is_empty() {
+                return Err(syn::Error::new(remote_token.span, "invalid remote type"));
+            }
+            attrs.remote = Some(remote);
+        } else if !input.is_empty() {
+            attrs.rename = Some(input.parse()?);
+        }
+        input.parse::<syn::parse::Nothing>()?;
+
+        Ok(attrs)
+    }
 }
 
 #[cfg(test)]

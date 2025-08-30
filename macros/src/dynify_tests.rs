@@ -96,6 +96,15 @@ define_macro_tests!(
         quote!(my_dyn_test),
         quote!(async fn test(_arg1: &str) -> String { todo!() }),
     )]
+    // == Remote items == //
+    #[case::remote_trait(
+        quote!(remote = "dynify::r#priv::TestRemoteTrait"),
+        quote!(trait DynTestRemoteTrait { async fn test(&self, arg: &str) -> usize; }),
+    )]
+    #[case::remote_fn(
+        quote!(remote = "dynify::r#priv::test_remote_fn"),
+        quote!(async fn dyn_test_remote_fn(_arg1: &str) -> usize {}),
+    )]
     fn ui(#[case] test_name: &str, #[case] attr: TokenStream, #[case] input: TokenStream) {
         let output = expand(attr, input).unwrap();
         // Append `fn main() {}` so that they can pass compile tests
