@@ -295,6 +295,8 @@ impl syn::parse::Parse for Options {
             remote: None,
         };
 
+        // The syntax for specifying arbitrary tokens as the value of an option
+        // follows those used in [serde](https://github.com/serde-rs/serde).
         if input.peek2(Token![=]) {
             let remote_token = input.parse::<remote>()?;
             let _eq_token = input.parse::<Token![=]>()?;
