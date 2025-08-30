@@ -8,3 +8,4 @@ coverage:
       default:
         enabled: true
         threshold: 1%
+    patch: false

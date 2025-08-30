@@ -1,5 +1,4 @@
 /* This file is @generated for testing purpose */
-#[allow(async_fn_in_trait)]
 trait Trait<'life1, 'life2, Arg1, Arg2> {
     const KST: usize;
     type Type: 'static;

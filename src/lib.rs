@@ -47,6 +47,16 @@ pub mod r#priv {
     pub type PinRcSelf = crate::receiver::Pin<RcSelf>;
     #[cfg(feature = "alloc")]
     pub type PinArcSelf = crate::receiver::Pin<ArcSelf>;
+
+    #[allow(unused)]
+    pub async fn test_remote_fn(arg1: &str) -> usize {
+        todo!()
+    }
+
+    #[allow(async_fn_in_trait)]
+    pub trait TestRemoteTrait {
+        async fn test(&self, arg1: &str) -> usize;
+    }
 }
 
 #[doc = include_str!("../README.md")]

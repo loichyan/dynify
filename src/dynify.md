@@ -5,7 +5,8 @@ with a *dynified* variant. This involves converting each input function into a
 function constructor. Consider the following example:
 
 ```rust
-#[dynify::dynify]
+# use dynify::dynify;
+#[dynify]
 trait Client {
     async fn request(&self, uri: &str) -> String;
 }
@@ -51,7 +52,8 @@ impl<ClientImplementor: Client> DynClient for ClientImplementor {
 You can specify an identifier as the name of the generated trait:
 
 ```rust
-#[dynify::dynify(MyDynClient)]
+# use dynify::dynify;
+#[dynify(MyDynClient)]
 trait Client {
     async fn request(&self, uri: &str) -> String;
 }
@@ -119,12 +121,12 @@ illustrated below, you can combine `#[dynify]` with
 [trait-variant](https://crates.io/crates/trait-variant) to achieve this:
 
 ```rust
-# use dynify::PinDynify;
+# use dynify::{PinDynify, dynify};
 // You can also use `#(make(SendClient: Send))`. However, in this case, you can
 // no longer specify a name in `#[dynify]` because `#[trait_variant::make]`
 // will generate two traits, which leads to conflicting trait definitions.
 #[trait_variant::make(Send)]
-#[dynify::dynify] // must be put within the scope of `#[trait_variant::make]`
+#[dynify] // must be put within the scope of `#[trait_variant::make]`
 trait Client {
     async fn request(&self, uri: &str) -> String;
 }
@@ -143,10 +145,49 @@ purpose:
 <!-- TODO: enable doctest after we move to edition 2024 -->
 
 ```rust,ignore
-# use dynify::PinDynify;
+# use dynify::{PinDynify, dynify};
 #[bitte::bitte(Send)]
-#[dynify::dynify] // must be put within the scope of `#[bitte]`
+#[dynify] // must be put within the scope of `#[bitte]`
 trait Client {
     async fn request(&self, uri: &str) -> String;
+}
+```
+
+## Working with remote items
+
+Suppose you're going to add a variant for a remote trait, for example:
+
+```rust
+// external_crate::
+pub trait Read {
+    async fn read_to_string(&mut self) -> String;
+}
+```
+
+You need to copy the trait definition and specify the path to that trait using
+`#[dynify(remote = "path::to::trait")]`:
+
+```rust
+# use dynify::dynify;
+# mod external_crate {
+#     pub trait Read { async fn read_to_string(&mut self) -> String; }
+# }
+#[dynify(remote = "external_crate::Read")]
+// It's not necessary to include all the items; you can filter out unused ones.
+pub(crate) trait DynRead {
+    async fn read_to_string(&mut self) -> String;
+}
+```
+
+This also works for remote functions:
+
+```rust
+# use dynify::dynify;
+# mod external_crate {
+#   pub async fn read_to_string(path: &str) -> String { todo!() }
+# }
+#[dynify(remote = "external_crate::read_to_string")]
+pub(crate) async fn dyn_read_to_string(path: &str) -> String {
+    /* the body of this local function doesn't matter */
 }
 ```

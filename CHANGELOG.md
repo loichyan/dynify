@@ -37,6 +37,12 @@ follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 
 ## [Unreleased]
 
+### Added
+
+- Support using `#[dynify]` on remote items ([#17])
+
+[#17]: https://github.com/loichyan/dynify/pull/17
+
 ## [0.1.1] - 2025-08-28
 
 The major update since the previous release is the introduction of the
