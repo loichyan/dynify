@@ -65,6 +65,14 @@ for limited environments. In contrast, async-trait requires heap allocation to
 store trait objects, as it essentially transforms `async fn` into
 `Box<dyn Future>`.
 
+### vs dynosaur
+
+[dynosaur](https://crates.io/crates/dynosaur) employs the same approach as
+async-trait to generate dyn compatible traits but, by default, preserves the
+original trait for more performant static dispatch. Similar to the async-trait
+case, the main advantage of using dynify is the possibility to achieve heapless
+dynamic dispatch.
+
 ## ♥️ Special thanks
 
 - [Rust-for-Linux/pin-init](https://github.com/Rust-for-Linux/pin-init) for its
