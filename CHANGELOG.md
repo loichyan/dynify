@@ -39,9 +39,9 @@ follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 
 ### Added
 
-- Support using `#[dynify]` on remote items ([#{{PRNUM}}])
+- Support using `#[dynify]` on remote items ([#17])
 
-[#{{PRNUM}}]: https://github.com/loichyan/dynify/pull/{{PRNUM}}
+[#17]: https://github.com/loichyan/dynify/pull/17
 
 ## [0.1.1] - 2025-08-28
 
