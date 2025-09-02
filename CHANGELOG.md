@@ -45,9 +45,9 @@ follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 
 ### Fixed
 
-- Add `Send` and `Sync` bounds for `Buffered` ([#{{PRNUM}}])
+- Add `Send` and `Sync` bounds for `Buffered` ([#18])
 
-[#{{PRNUM}}]: https://github.com/loichyan/dynify/pull/{{PRNUM}}
+[#18]: https://github.com/loichyan/dynify/pull/18
 
 ## [0.1.1] - 2025-08-28
 
