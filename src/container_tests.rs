@@ -121,6 +121,24 @@ fn unpin_buffered() {
 }
 
 #[test]
+fn send_buffered() {
+    let mut stack = newstk::<16>();
+    let init = from_closure(|slot| slot.write(123));
+    let val: Buffered<usize> = init.init(&mut stack);
+    fn ensure_send(_: impl Send) {}
+    ensure_send(val);
+}
+
+#[test]
+fn sync_buffered() {
+    let mut stack = newstk::<16>();
+    let init = from_closure(|slot| slot.write(123));
+    let val: Buffered<usize> = init.init(&mut stack);
+    fn ensure_sync(_: impl Sync) {}
+    ensure_sync(val);
+}
+
+#[test]
 fn project_buffered() {
     let mut stack = newstk::<16>();
     let init = from_closure(|slot| slot.write(PhantomPinned));

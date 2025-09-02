@@ -109,7 +109,7 @@ pub unsafe trait PinEmplace<T: ?Sized>: Emplace<T> {
 ///
 /// **Tips**: `Buffered<T: Future>` implements `Future`, so you can simply write
 /// `async_hello().init(&mut stack).await` in practice.
-pub struct Buffered<'a, T: ?Sized>(NonNull<T>, PhantomData<&'a mut [u8]>);
+pub struct Buffered<'a, T: ?Sized>(NonNull<T>, PhantomData<&'a mut T>);
 impl<'a, T: ?Sized> Buffered<'a, T> {
     /// Constructs a new instance with the provided pointer.
     ///
@@ -214,6 +214,11 @@ impl<'a> Buffered<'a, dyn Any + Send + Sync> {
     }
 }
 
+// SAFETY: Since we hold a exclusive reference to `T`, it's okay to inherit the
+// `Send` and `Sync` bounds.
+unsafe impl<T: ?Sized + Send> Send for Buffered<'_, T> {}
+unsafe impl<T: ?Sized + Sync> Sync for Buffered<'_, T> {}
+
 // Pretend `Buffered` owns the value of `T` rather than just a pointer to it.
 // This, along with the `Buffered::project*` APIs, makes it easy to obtain a
 // pinned reference to `T` in safe Rust. But the downside is that this prevents
@@ -275,7 +280,7 @@ impl fmt::Display for OutOfCapacity {
     }
 }
 
-unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut MaybeUninit<[u8; N]> {
+unsafe impl<'a, T: 'a + ?Sized, const N: usize> Emplace<T> for &'a mut MaybeUninit<[u8; N]> {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
@@ -287,7 +292,7 @@ unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut MaybeUninit<[u
         uninit_slice.emplace(constructor)
     }
 }
-unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut [MaybeUninit<u8>; N] {
+unsafe impl<'a, T: 'a + ?Sized, const N: usize> Emplace<T> for &'a mut [MaybeUninit<u8>; N] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
@@ -298,7 +303,7 @@ unsafe impl<'a, T: ?Sized, const N: usize> Emplace<T> for &'a mut [MaybeUninit<u
         self.as_mut_slice().emplace(constructor)
     }
 }
-unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut [MaybeUninit<u8>] {
+unsafe impl<'a, T: 'a + ?Sized> Emplace<T> for &'a mut [MaybeUninit<u8>] {
     type Ptr = Buffered<'a, T>;
     type Err = OutOfCapacity;
 
@@ -393,7 +398,7 @@ mod __alloc {
 
     // TODO: pinned vector?
     #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
-    unsafe impl<'a, T: ?Sized> Emplace<T> for &'a mut Vec<MaybeUninit<u8>> {
+    unsafe impl<'a, T: 'a + ?Sized> Emplace<T> for &'a mut Vec<MaybeUninit<u8>> {
         type Ptr = Buffered<'a, T>;
         type Err = Infallible;
 
@@ -446,7 +451,7 @@ mod __smallvec {
     unsafe impl<'a, A, T> Emplace<T> for &'a mut SmallVec<A>
     where
         A: Array<Item = MaybeUninit<u8>>,
-        T: ?Sized,
+        T: 'a + ?Sized,
     {
         type Ptr = Buffered<'a, T>;
         type Err = Infallible;
