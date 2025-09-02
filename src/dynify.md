@@ -121,7 +121,8 @@ illustrated below, you can combine `#[dynify]` with
 [trait-variant](https://crates.io/crates/trait-variant) to achieve this:
 
 ```rust
-# use dynify::{PinDynify, dynify};
+# use dynify::{Dynify, dynify};
+# use std::mem::MaybeUninit;
 // You can also use `#(make(SendClient: Send))`. However, in this case, you can
 // no longer specify a name in `#[dynify]` because `#[trait_variant::make]`
 // will generate two traits, which leads to conflicting trait definitions.
@@ -133,8 +134,10 @@ trait Client {
 fn run_client(
     client: &(dyn DynClient + Sync),
 ) -> impl '_ + std::future::Future<Output = ()> + Send {
+    let mut stack = [MaybeUninit::<u8>::uninit(); 16];
+    let mut heap = Vec::<MaybeUninit<u8>>::new();
     async move {
-        client.request("http://magic/request").pin_boxed().await;
+        client.request("http://magic/request").init2(&mut stack, &mut heap).await;
     }
 }
 ```

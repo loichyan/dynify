@@ -1,6 +1,7 @@
 use std::future::Future;
+use std::mem::MaybeUninit;
 
-use dynify::PinDynify;
+use dynify::Dynify;
 
 #[trait_variant::make(Send)]
 #[dynify::dynify]
@@ -9,7 +10,12 @@ trait Client {
 }
 
 async fn make_request(client: &(dyn Sync + DynClient)) {
-    client.request("http://magic/coffee/shop").pin_boxed().await;
+    let mut stack = [MaybeUninit::<u8>::uninit(); 16];
+    let mut heap = Vec::<MaybeUninit<u8>>::new();
+    client
+        .request("http://magic/coffee/shop")
+        .init2(&mut stack, &mut heap)
+        .await;
 }
 
 fn poll_future(fut: impl Send + Future<Output = ()>) {
