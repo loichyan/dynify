@@ -144,75 +144,41 @@ impl<'a, T: ?Sized> Buffered<'a, T> {
         }
     }
 }
-impl<'a, T> Buffered<'a, T> {
+impl<'a, T: Sized> Buffered<'a, T> {
     /// Consumes this instance, returning the inner value.
     pub fn into_inner(self) -> T {
         unsafe { self.into_raw().read() }
     }
 }
-impl<'a> Buffered<'a, dyn Any> {
-    /// Attempts to downcast the pointer to a concrete type.
-    pub fn downcast<T: Any>(self) -> Result<Buffered<'a, T>, Self> {
-        if self.is::<T>() {
-            unsafe { Ok(self.downcast_unchecked()) }
-        } else {
-            Err(self)
-        }
-    }
 
-    /// Downcasts the box to a concrete type.
-    ///
-    /// For a safe alternative see [`downcast`](Self::downcast).
-    ///
-    /// # Safety
-    ///
-    /// The contained value must be of type `T`.
-    pub unsafe fn downcast_unchecked<T: Any>(self) -> Buffered<'a, T> {
-        Buffered::from_raw(self.into_raw().cast())
-    }
-}
-impl<'a> Buffered<'a, dyn Any + Send> {
-    /// Attempts to downcast the pointer to a concrete type.
-    pub fn downcast<T: Any>(self) -> Result<Buffered<'a, T>, Self> {
-        if self.is::<T>() {
-            unsafe { Ok(self.downcast_unchecked()) }
-        } else {
-            Err(self)
-        }
-    }
+macro_rules! impl_downcast {
+    ($($trait:tt)+) => {
+        impl<'a> Buffered<'a, dyn $($trait)*> {
+            /// Attempts to downcast the pointer to a concrete type.
+            pub fn downcast<T: $($trait)*>(self) -> Result<Buffered<'a, T>, Self> {
+                if self.is::<T>() {
+                    unsafe { Ok(self.downcast_unchecked()) }
+                } else {
+                    Err(self)
+                }
+            }
 
-    /// Downcasts the box to a concrete type.
-    ///
-    /// For a safe alternative see [`downcast`](Self::downcast).
-    ///
-    /// # Safety
-    ///
-    /// The contained value must be of type `T`.
-    pub unsafe fn downcast_unchecked<T: Any>(self) -> Buffered<'a, T> {
-        Buffered::from_raw(self.into_raw().cast())
-    }
-}
-impl<'a> Buffered<'a, dyn Any + Send + Sync> {
-    /// Attempts to downcast the pointer to a concrete type.
-    pub fn downcast<T: Any>(self) -> Result<Buffered<'a, T>, Self> {
-        if self.is::<T>() {
-            unsafe { Ok(self.downcast_unchecked()) }
-        } else {
-            Err(self)
+            /// Downcasts the box to a concrete type.
+            ///
+            /// For a safe alternative see [`downcast`](Self::downcast).
+            ///
+            /// # Safety
+            ///
+            /// The contained value must be of type `T`.
+            pub unsafe fn downcast_unchecked<T: $($trait)*>(self) -> Buffered<'a, T> {
+                Buffered::from_raw(self.into_raw().cast())
+            }
         }
-    }
-
-    /// Downcasts the box to a concrete type.
-    ///
-    /// For a safe alternative see [`downcast`](Self::downcast).
-    ///
-    /// # Safety
-    ///
-    /// The contained value must be of type `T`.
-    pub unsafe fn downcast_unchecked<T: Any>(self) -> Buffered<'a, T> {
-        Buffered::from_raw(self.into_raw().cast())
-    }
+    };
 }
+impl_downcast!(Any);
+impl_downcast!(Any + Send);
+impl_downcast!(Any + Send + Sync);
 
 // SAFETY: Since we hold a exclusive reference to `T`, it's okay to inherit the
 // `Send` and `Sync` bounds.
