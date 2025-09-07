@@ -37,16 +37,21 @@ follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 
 ## [Unreleased]
 
+## [0.1.2] - {{DATE}}
+
+## [0.1.2] - {{DATE}}
+
 ### Added
 
-- Support using `#[dynify]` on remote items ([#17])
-
-[#17]: https://github.com/loichyan/dynify/pull/17
+- Support for using `#[dynify]` on remote items ([#17]). This makes it
+  convenient to work with foreign async traits.
 
 ### Fixed
 
-- Add `Send` and `Sync` bounds for `Buffered` ([#18])
+- Added `Send` and `Sync` bounds for `Buffered` ([#18]). This is crucial for
+  dynify to function in multi-threaded contexts.
 
+[#17]: https://github.com/loichyan/dynify/pull/17
 [#18]: https://github.com/loichyan/dynify/pull/18
 
 ## [0.1.1] - 2025-08-28
@@ -105,4 +110,5 @@ details.
 [0.0.1]: https://github.com/loichyan/dynify/tree/v0.0.1
 [0.1.0]: https://github.com/loichyan/dynify/compare/v0.0.1..v0.1.0
 [0.1.1]: https://github.com/loichyan/dynify/compare/v0.1.0..v0.1.1
-[Unreleased]: https://github.com/loichyan/dynify/compare/v0.1.1..HEAD
+[0.1.2]: https://github.com/loichyan/dynify/compare/v0.1.1..v0.1.2
+[Unreleased]: https://github.com/loichyan/dynify/compare/v0.1.2..HEAD
