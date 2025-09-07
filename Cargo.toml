@@ -2,7 +2,7 @@
 members = ["macros"]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Loi Chyan <loichyan@foxmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -10,6 +10,7 @@ rust-version = "1.80"
 repository = "https://github.com/loichyan/dynify"
 
 [workspace.dependencies]
+dynify-macros = { path = "macros", version = "=0.1.2" }
 fastrand = "2.3.0"
 rstest = { version = "0.25.0", default-features = false }
 
@@ -41,7 +42,7 @@ macros = ["dep:dynify-macros"]
 smallvec = ["dep:smallvec"]
 
 [dependencies]
-dynify-macros = { path = "./macros", optional = true }
+dynify-macros = { workspace = true, optional = true }
 smallvec = { version = "1", optional = true }
 
 [dev-dependencies]
