@@ -48,7 +48,7 @@ follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 
 ### Fixed
 
-- Added `Send` and `Sync` bounds for `Buffered` ([#18]). This is crucial for
+- Add `Send` and `Sync` bounds for `Buffered` ([#18]). This is crucial for
   dynify to function in multi-threaded contexts.
 
 [#17]: https://github.com/loichyan/dynify/pull/17
