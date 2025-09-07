@@ -43,7 +43,7 @@ follows <https://www.conventionalcommits.org/en/v1.0.0/> to track changes.
 
 ### Added
 
-- Support for using `#[dynify]` on remote items ([#17]). This makes it
+- Support using `#[dynify]` on remote items ([#17]). This makes it more
   convenient to work with foreign async traits.
 
 ### Fixed
