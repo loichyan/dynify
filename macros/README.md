@@ -2,7 +2,7 @@
 
 Helpful procedural macros for [dynify](https://crates.io/crates/dynify).
 
-## ♥️ Special thanks
+## ❤️ Special thanks
 
 The macros in this crate are heavily inspired by
 [async-trait](https://crates.io/crates/async-trait). Please check it out as well

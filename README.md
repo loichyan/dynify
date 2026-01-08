@@ -73,7 +73,7 @@ original trait for more performant static dispatch. Similar to the async-trait
 case, the main advantage of using dynify is the possibility to achieve heapless
 dynamic dispatch.
 
-## ♥️ Special thanks
+## ❤️ Special thanks
 
 - [Rust-for-Linux/pin-init](https://github.com/Rust-for-Linux/pin-init) for its
   brilliant design on creating constructors for `async fn`s, which serves as the
