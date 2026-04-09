@@ -3,7 +3,7 @@ members = ["macros"]
 
 [workspace.package]
 version = "0.1.2"
-authors = ["Loi Chyan <loichyan@foxmail.com>"]
+authors = ["Loi Chyan <loichyan@outlook.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 rust-version = "1.80"
